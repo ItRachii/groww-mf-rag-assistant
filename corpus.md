@@ -58,11 +58,29 @@
 |---|-----|--------|-----|---------------|----------------|
 | 11 | HDFC AMC | All Schemes | `https://www.hdfcfund.com/investor-services/fund-documents/kim` | KIM | TER, exit load, min SIP/lumpsum |
 
+### 3.4 Scheme Summary — Quick Reference
+
+| # | AMC | Scheme | URL | Document Type | Expected Facts |
+|---|-----|--------|-----|---------------|----------------|
+| 12 | HDFC AMC | All Schemes | `https://www.hdfcfund.com/investor-services/fund-documents/scheme-summary` | Scheme Summary | Key facts, investment objective, risk level, NAV |
+
 ### 3.4 Monthly Factsheets — Benchmark, Returns, Portfolio Holdings, Riskometer
 
 | # | AMC | Scheme | URL | Document Type | Expected Facts |
 |---|-----|--------|-----|---------------|----------------|
-| 12 | HDFC AMC | All Schemes | `https://www.hdfcfund.com/literature/scheme-factsheet` | Factsheet | Benchmark, AUM, holdings, riskometer |
+| 13 | HDFC AMC | All Schemes | `https://www.hdfcfund.com/investor-services/factsheets` | Factsheet | Scheme objective, inception date, fund manager, portfolio holdings, risk ratios, historical performance, AUM |
+
+### 3.5 Leaflets — Scheme Highlights
+
+| # | AMC | Scheme | URL | Document Type | Expected Facts |
+|---|-----|--------|-----|---------------|----------------|
+| 14 | HDFC AMC | All Schemes | `https://www.hdfcfund.com/investor-services/fund-literature/leaflets` | Leaflet | Scheme highlights, key features, investment options |
+
+### 3.6 Presentations — Detailed Scheme Information
+
+| # | AMC | Scheme | URL | Document Type | Expected Facts |
+|---|-----|--------|-----|---------------|----------------|
+| 15 | HDFC AMC | All Schemes | `https://www.hdfcfund.com/investor-services/fund-literature/presentation` | Presentation | Detailed scheme analysis, market outlook, investment strategy |
 
 ### 3.4 Statement of Additional Information (SAI) — AMC Details, Legal Structure
 

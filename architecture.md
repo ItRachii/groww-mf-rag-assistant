@@ -542,7 +542,7 @@ Every query logs:
 |---|--------|-----|
 | 6 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
 | 7 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct` |
-| 8 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-taxsaver` |
+| 8 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct` |
 | 9 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-balanced-advantage-fund` |
 | 10 | HDFC Liquid Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-liquid-fund` |
 
@@ -552,15 +552,29 @@ Every query logs:
 |---|----------|-----|
 | 11 | HDFC AMC SAI (covers all schemes) | `https://www.hdfcfund.com/literature/statement-of-additional-information` |
 
-### 12.4 Monthly Factsheets — 5 Documents
+### 12.4 Scheme Summary — 1 Document
 
-| # | Scheme | URL |
-|---|--------|-----|
-| 12 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
-| 13 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct` |
-| 14 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/factsheet/hdfc-taxsaver` |
-| 15 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-balanced-advantage-fund` |
-| 16 | HDFC Liquid Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-liquid-fund` |
+| # | Document | URL |
+|---|----------|-----|
+| 12 | All Schemes Summary | `https://www.hdfcfund.com/investor-services/fund-documents/scheme-summary` |
+
+### 12.5 Monthly Factsheets — 1 Document
+
+| # | Document | URL |
+|---|----------|-----|
+| 13 | All Schemes Factsheets | `https://www.hdfcfund.com/investor-services/factsheets` |
+
+### 12.6 Leaflets — 1 Document
+
+| # | Document | URL |
+|---|----------|-----|
+| 14 | All Schemes Leaflets | `https://www.hdfcfund.com/investor-services/fund-literature/leaflets` |
+
+### 12.7 Presentations — 1 Document
+
+| # | Document | URL |
+|---|----------|-----|
+| 15 | All Schemes Presentations | `https://www.hdfcfund.com/investor-services/fund-literature/presentation` |
 
 ### 12.5 AMFI Data Sources — 4 Documents
 
