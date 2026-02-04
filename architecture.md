@@ -530,18 +530,18 @@ Every query logs:
 
 | # | Scheme | URL |
 |---|--------|-----|
-| 1 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
-| 2 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-flexi-cap-fund` |
-| 3 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-taxsaver` |
-| 4 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-balanced-advantage-fund` |
-| 5 | HDFC Liquid Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-liquid-fund` |
+| 1 | HDFC Large Cap Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
+| 2 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
+| 3 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
+| 4 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
+| 5 | HDFC Liquid Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
 
 ### 12.2 Key Information Memorandum (KIM) — 5 Documents
 
 | # | Scheme | URL |
 |---|--------|-----|
 | 6 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
-| 7 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-flexi-cap-fund` |
+| 7 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct` |
 | 8 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-taxsaver` |
 | 9 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-balanced-advantage-fund` |
 | 10 | HDFC Liquid Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-liquid-fund` |
@@ -557,7 +557,7 @@ Every query logs:
 | # | Scheme | URL |
 |---|--------|-----|
 | 12 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
-| 13 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-flexi-cap-fund` |
+| 13 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct` |
 | 14 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/factsheet/hdfc-taxsaver` |
 | 15 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-balanced-advantage-fund` |
 | 16 | HDFC Liquid Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-liquid-fund` |
