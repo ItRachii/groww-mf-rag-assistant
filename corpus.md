@@ -9,7 +9,7 @@
 ## 1. Corpus Overview
 
 | Attribute | Value |
-|-----------|-------|
+| ----------- | ------- |
 | **AMC** | HDFC Asset Management Company Ltd. |
 | **Number of Schemes** | 5 |
 | **Total Documents** | 25 |
@@ -21,7 +21,7 @@
 ## 2. Selected Schemes
 
 | # | Scheme Name | Category | Sub-Category | Plan | AMFI Code | Rationale |
-|---|-------------|----------|--------------|------|-----------|-----------|
+| --- | ----------- | -------- | ------------ | ---- | --------- | --------- |
 | 1 | HDFC Large Cap Fund | Equity | Large Cap | Direct | 100032 | Blue-chip, stable documentation |
 | 2 | HDFC Flexi Cap Fund | Equity | Flexi Cap | Direct | 100394 | Multi-cap flexibility |
 | 3 | HDFC Tax Saver (ELSS) | Equity | ELSS | Direct | 100186 | Tax-saving, lock-in rules |
