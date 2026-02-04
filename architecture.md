@@ -64,11 +64,13 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 
 | Source Type | URL Pattern | Content |
 | ------------- | ------------- | --------- |
-| Scheme Information Document (SID) | `hdfcfund.com/literature/sid/{scheme}` | Fund objective, risk factors, investment strategy |
-| Statement of Additional Info (SAI) | `hdfcfund.com/literature/sai` | AMC details, legal structure |
-| Key Information Memorandum (KIM) | `hdfcfund.com/literature/kim/{scheme}` | Condensed scheme facts |
+| Product Pages | `hdfcfund.com/explore/mutual-funds/{scheme}/direct` | Fund objective, TER, exit load, SIP min |
+| Scheme Information Document (SID) | `hdfcfund.com/investor-services/fund-documents/sid` | Fund objective, risk factors, investment strategy |
+| Key Information Memorandum (KIM) | `hdfcfund.com/investor-services/fund-documents/kim` | Condensed scheme facts, TER, exit load |
+| Statement of Additional Info (SAI) | `hdfcfund.com/literature/statement-of-additional-information` | AMC details, legal structure |
+| Monthly Factsheets | `hdfcfund.com/investor-services/factsheets` | Holdings, returns, riskometer |
 | AMFI NAV Data | `amfiindia.com/spages/NAVAll.txt` | Official NAV snapshots |
-| SEBI Scheme Categories | `sebi.gov.in/legal/circulars` | Category definitions |
+| SEBI Circulars | `sebi.gov.in/legal/circulars` | Category definitions, TER limits |
 
 ---
 
@@ -543,8 +545,8 @@ Every query logs:
 | 6 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
 | 7 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct` |
 | 8 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct` |
-| 9 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-balanced-advantage-fund` |
-| 10 | HDFC Liquid Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-liquid-fund` |
+| 9 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-balanced-advantage-fund/direct` |
+| 10 | HDFC Liquid Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-liquid-fund/direct` |
 
 ### 12.3 Statement of Additional Information (SAI) — 1 Document
 
