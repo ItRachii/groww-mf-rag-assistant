@@ -70,7 +70,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 | Statement of Additional Info (SAI) | `hdfcfund.com/literature/statement-of-additional-information` | AMC details, legal structure |
 | Monthly Factsheets | `hdfcfund.com/investor-services/factsheets` | Holdings, returns, riskometer |
 | AMFI NAV Data | `amfiindia.com/spages/NAVAll.txt` | Official NAV snapshots |
-| SEBI Circulars | `sebi.gov.in/legal/circulars` | Category definitions, TER limits |
+| SEBI Circulars | `sebi.gov.in/sebiweb/home/HomeAction.do?doListing=yes&sid=1&ssid=7&smid=0` | Category definitions, TER limits |
 
 ---
 
