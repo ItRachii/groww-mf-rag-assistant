@@ -30,7 +30,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 ### 2.3 Hard Constraints
 
 | Constraint | Enforcement |
-|------------|-------------|
+| ------------ | ------------- |
 | Public sources only | Whitelisted domains in scraper |
 | No PII | No user data stored; stateless queries |
 | No advice | Refusal logic in prompt + classifier |
@@ -53,7 +53,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 ### 3.2 Selected Schemes (5 Schemes)
 
 | Scheme Name | Category | Sub-Category | Plan | AMFI Code | Rationale |
-|-------------|----------|--------------|------|-----------|-----------|
+| ------------- | ---------- | -------------- | ------ | ----------- | ----------- |
 | HDFC Large Cap Fund | Equity | Large Cap | Direct | 100032 | Blue-chip exposure, stable documentation |
 | HDFC Flexi Cap Fund | Equity | Flexi Cap | Direct | 100394 | Multi-cap flexibility, popular scheme |
 | HDFC Tax Saver (ELSS) | Equity | ELSS | Direct | 100186 | Tax-saving category, 3-year lock-in rules |
@@ -63,7 +63,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 ### 3.3 Document Sources
 
 | Source Type | URL Pattern | Content |
-|-------------|-------------|---------|
+| ------------- | ------------- | --------- |
 | Scheme Information Document (SID) | `hdfcfund.com/literature/sid/{scheme}` | Fund objective, risk factors, investment strategy |
 | Statement of Additional Info (SAI) | `hdfcfund.com/literature/sai` | AMC details, legal structure |
 | Key Information Memorandum (KIM) | `hdfcfund.com/literature/kim/{scheme}` | Condensed scheme facts |
@@ -76,7 +76,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 
 ### 4.1 High-Level Pipeline
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                              INGESTION PIPELINE                              │
 ├──────────────────────────────────────────────────────────────────────────────┤
@@ -106,7 +106,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 #### 4.2.1 Document Ingestion
 
 | Component | Tool | Justification |
-|-----------|------|---------------|
+| ----------- | ------ | --------------- |
 | PDF Parser | **PyMuPDF4LLM** | Fast, preserves table structure, outputs clean markdown. Better than PyPDF2 for structured financial docs. |
 | HTML Parser | **BeautifulSoup + requests** | Lightweight, no browser dependency. Sufficient for static AMFI pages. |
 | Metadata Extractor | Custom Python | Extract: scheme name, AMFI code, document type, publication date, source URL |
@@ -121,9 +121,9 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 **Atomic Table Handling** (Critical for 100% Reliability):
 
 | Rule | Implementation |
-|------|----------------|
+| ------ | ---------------- |
 | **Table Detection** | Regex + PyMuPDF table extraction API to identify all tables |
-| **Explicit Tagging** | Each table chunk tagged with `is_table: true`, `table_type: "expense_ratio|risk_meter|nav_history"` |
+| **Explicit Tagging** | Each table chunk tagged with `is_table: true`, `table_type: "expense_ratio\|risk_meter\|nav_history"` |
 | **Size Override** | Tables bypass 512-token limit; entire table = 1 chunk (max 2048 tokens) |
 | **Boundary Check** | Pre-chunking validator: if table detected and chunk boundary falls mid-table → extend chunk to table end |
 | **Fallback** | If table exceeds 2048 tokens → split by logical rows (preserve header in each split) |
@@ -131,7 +131,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 #### 4.2.2 Chunking Strategy
 
 | Parameter | Value | Rationale |
-|-----------|-------|-----------|
+| ----------- | ------- | ----------- |
 | **Chunk Size** | 512 tokens | Optimal for BGE-M3 (max 8192, but 512 balances granularity vs context). Financial docs have dense info; smaller chunks = precise retrieval. |
 | **Overlap** | 64 tokens (~12.5%) | Preserves context at boundaries. Important for sentences spanning chunk edges. |
 | **Chunking Method** | **Semantic Chunking** (LangChain `SemanticChunker`) | Respects paragraph/section boundaries. Falls back to token-based if semantic splitting fails. |
@@ -139,7 +139,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 
 **Chunk Metadata Schema**:
 
-```
+```json
 {
   "chunk_id": "uuid",
   "text": "...",
@@ -156,7 +156,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 #### 4.2.3 Embedding Model
 
 | Aspect | Choice | Rationale |
-|--------|--------|-----------|
+| -------- | -------- | ----------- |
 | **Model** | **BGE-M3** (`BAAI/bge-m3`) | State-of-the-art multilingual embedding. Handles English + Hindi mixed queries. 1024-dim vectors. Apache 2.0 license. |
 | **Alternatives Considered** | `sentence-transformers/all-MiniLM-L6-v2` | Smaller (384-dim) but worse on domain-specific financial terms. |
 | | OpenAI `text-embedding-3-small` | Better quality but requires API calls, adds latency, vendor lock-in. |
@@ -172,7 +172,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 #### 4.2.4 Vector Store
 
 | Aspect | Choice | Rationale |
-|--------|--------|-----------|
+| -------- | -------- | ----------- |
 | **Vector Store** | **ChromaDB** (local, persistent) | Open-source, embedded, no infra dependency. Supports metadata filtering. Production-ready with SQLite backend. |
 | **Alternatives Considered** | Qdrant | More features but heavier. Overkill for ~5 schemes. |
 | | Pinecone | Managed service = vendor lock-in + cost. |
@@ -182,7 +182,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 
 **Collection Schema**:
 
-```
+```text
 Collection: "hdfc_mf_faq"
   - Vectors: 1024-dim (BGE-M3)
   - Metadata: scheme_name, document_type, source_url, section_title
@@ -192,7 +192,7 @@ Collection: "hdfc_mf_faq"
 #### 4.2.5 Retrieval Strategy
 
 | Stage | Method | Details |
-|-------|--------|---------|
+| ------- | -------- | --------- |
 | **Stage 0: Confidence Gate** | Cosine similarity threshold | If **all** top-20 scores < 0.4 → immediate refusal: "I don't have this information in my sources." No LLM call. |
 | **Stage 1: Dense Retrieval** | Cosine similarity on BGE-M3 embeddings | Retrieve top-20 candidates. Fast approximate search via HNSW. |
 | **Stage 2: Metadata Filter** | Filter by `scheme_name` if query mentions specific scheme | Reduces noise from unrelated schemes. |
@@ -207,7 +207,7 @@ Collection: "hdfc_mf_faq"
 **Financial Acronym Expansion Map** (Pre-Embedding):
 
 | Acronym | Expansion | Context |
-|---------|-----------|---------|
+| --------- | ----------- | --------- |
 | ELSS | Equity Linked Savings Scheme | Tax-saving mutual fund under 80C |
 | NAV | Net Asset Value | Per-unit price of fund |
 | SIP | Systematic Investment Plan | Regular monthly investment |
@@ -223,7 +223,7 @@ Collection: "hdfc_mf_faq"
 
 **Query Expansion Logic**:
 
-```
+```text
 1. Tokenize user query
 2. For each token, check if it matches an acronym (case-insensitive)
 3. If match → append expansion in parentheses: "ELSS" → "ELSS (Equity Linked Savings Scheme)"
@@ -233,7 +233,7 @@ Collection: "hdfc_mf_faq"
 #### 4.2.6 Answer Generation (LLM)
 
 | Aspect | Choice | Rationale |
-|--------|--------|-----------|
+| -------- | -------- | ----------- |
 | **Model** | **Mistral 7B Instruct v0.3** (via Ollama or llama.cpp) | Best open-source 7B model for instruction following. Runs on consumer GPU (8GB VRAM). Apache 2.0 license. |
 | **Alternatives Considered** | GPT-4 Turbo | Superior quality but API cost + data leaves your infra. |
 | | Llama 3.1 8B | Comparable but Mistral has tighter instruction adherence. |
@@ -248,7 +248,7 @@ Collection: "hdfc_mf_faq"
 
 ### 5.1 System Prompt (Fixed)
 
-```
+```text
 You are a factual FAQ assistant for Groww, answering questions about HDFC mutual fund schemes.
 
 STRICT RULES:
@@ -271,7 +271,7 @@ FACTUAL ANSWER:
 ### 5.2 Prompt Design Principles
 
 | Principle | Implementation |
-|-----------|----------------|
+| ----------- | ---------------- |
 | **Grounding** | Context injected verbatim before query. Model instructed to use ONLY context. |
 | **Citation Format** | Explicit format `[Source: <URL>]` makes regex extraction reliable. |
 | **Refusal Instruction** | Explicit prohibition of advice in system prompt. |
@@ -282,7 +282,7 @@ FACTUAL ANSWER:
 
 Include 2-3 examples in system prompt for format consistency:
 
-```
+```text
 Example 1:
 Q: What is the expense ratio of HDFC Large Cap Fund?
 A: The Total Expense Ratio (TER) for HDFC Large Cap Fund - Regular Plan is 1.62% as of January 2026. This includes management fees and operational expenses. [Source: https://hdfcfund.com/literature/kim/hdfc-top-100-fund]
@@ -304,7 +304,7 @@ A: I cannot provide investment advice or recommendations. For personalized guida
 
 ### 6.2 Enforcement Pipeline
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                   CITATION VALIDATOR                            │
 ├─────────────────────────────────────────────────────────────────┤
@@ -319,7 +319,7 @@ A: I cannot provide investment advice or recommendations. For personalized guida
 ### 6.3 Validation Rules
 
 | Check | Action on Failure |
-|-------|-------------------|
+| ------- | ------------------- |
 | **Regex Match** | Citation pattern `[Source: <URL>]` must exist → Retry generation (max 2 retries) |
 | **URL Format** | Must be valid HTTP(S) URL → Replace with first retrieved chunk's `source_url` |
 | **Domain Whitelist** | URL must be from `hdfcfund.com`, `amfiindia.com`, or `sebi.gov.in` → Replace with retrieved chunk's URL |
@@ -344,7 +344,7 @@ If LLM fails to include citation after 2 retries:
 **Purpose**: Block clearly off-topic or advice-seeking queries before wasting retrieval compute.
 
 | Component | Implementation |
-|-----------|----------------|
+| ----------- | ---------------- |
 | **Method** | Keyword blocklist + Zero-shot classifier |
 | **Classifier** | `facebook/bart-large-mnli` (zero-shot NLI) |
 | **Labels** | `["factual question", "investment advice", "opinion request", "off-topic"]` |
@@ -352,8 +352,8 @@ If LLM fails to include citation after 2 retries:
 
 **Keyword Blocklist** (triggers immediate refusal):
 
-```
-["should I invest", "best fund", "which fund", "buy or sell", "recommend", 
+```python
+["should I invest", "best fund", "which fund", "buy or sell", "recommend",
  "better fund", "good returns", "SIP suggestion", "portfolio", "allocate"]
 ```
 
@@ -364,7 +364,7 @@ Even if query passes Layer 1, LLM might still generate advice. Post-process:
 1. **Regex scan** for advice patterns: `"you should"`, `"I recommend"`, `"consider investing"`
 2. If detected → Replace response with canned refusal:
 
-```
+```text
 "I can only provide factual information about mutual fund schemes. For 
 personalized investment advice, please consult a SEBI-registered investment 
 advisor. [Source: N/A]"
@@ -372,7 +372,7 @@ advisor. [Source: N/A]"
 
 ### 7.2 Refusal Response Template
 
-```
+```text
 I'm designed to answer factual questions about HDFC mutual fund schemes only. 
 I cannot provide investment advice, fund comparisons, or recommendations. 
 For personalized guidance, please consult a SEBI-registered advisor. [Source: N/A]
@@ -381,7 +381,7 @@ For personalized guidance, please consult a SEBI-registered advisor. [Source: N/
 ### 7.3 Edge Cases
 
 | Query Type | Handling |
-|------------|----------|
+| ------------ | ---------- |
 | "What is the return of HDFC Large Cap?" | Answer with historical return if in source docs (factual). |
 | "Will HDFC Large Cap give good returns?" | Refuse (prediction/advice). |
 | "Compare HDFC Large Cap and Flexi Cap" | Refuse (comparative = implicit advice). |
@@ -394,7 +394,7 @@ For personalized guidance, please consult a SEBI-registered advisor. [Source: N/
 
 ### 8.1 Local Deployment (Recommended for MVP)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    LOCAL DEPLOYMENT STACK                       │
 ├─────────────────────────────────────────────────────────────────┤
@@ -421,7 +421,7 @@ For personalized guidance, please consult a SEBI-registered advisor. [Source: N/
 ### 8.2 System Requirements
 
 | Component | Minimum | Recommended |
-|-----------|---------|-------------|
+| ----------- | --------- | ------------- |
 | **CPU** | 8 cores | 16 cores |
 | **RAM** | 16 GB | 32 GB |
 | **GPU** | 8 GB VRAM (RTX 3070) | 12 GB VRAM (RTX 4070) |
@@ -431,7 +431,7 @@ For personalized guidance, please consult a SEBI-registered advisor. [Source: N/
 ### 8.3 Tech Stack Summary
 
 | Layer | Technology | Version |
-|-------|------------|---------|
+| ------- | ------------ | --------- |
 | **Frontend** | Gradio | 4.x |
 | **Backend API** | FastAPI | 0.110+ |
 | **LLM Runtime** | Ollama | Latest |
@@ -447,7 +447,7 @@ For personalized guidance, please consult a SEBI-registered advisor. [Source: N/
 ### 8.4 API Endpoints
 
 | Endpoint | Method | Purpose |
-|----------|--------|---------|
+| ---------- | -------- | --------- |
 | `/ask` | POST | Main query endpoint. Input: `{"query": "..."}` Output: `{"answer": "...", "citation": "...", "confidence": 0.85}` |
 | `/health` | GET | Healthcheck for all components |
 | `/logs` | GET | Retrieve audit logs (auth-protected) |
@@ -484,7 +484,7 @@ Every query logs:
 ### 9.2 Reproducibility Guarantees
 
 | Aspect | Mechanism |
-|--------|-----------|
+| -------- | ----------- |
 | **Deterministic Retrieval** | Fixed embedding model, consistent chunking |
 | **Deterministic Generation** | Temperature=0.1, seed parameter (Ollama supports) |
 | **Version Pinning** | All dependencies version-locked in `requirements.txt` |
@@ -502,7 +502,7 @@ Every query logs:
 ## 10. Security Considerations
 
 | Concern | Mitigation |
-|---------|------------|
+| --------- | ------------ |
 | **Prompt Injection** | Input sanitization (strip special chars), system prompt isolation |
 | **Data Exfiltration** | No user data stored; stateless queries |
 | **Model Jailbreaking** | Refusal classifier + post-generation validation |
@@ -529,7 +529,7 @@ Every query logs:
 ### 12.1 Scheme Information Documents (SID) — 5 Documents
 
 | # | Scheme | URL |
-|---|--------|-----|
+| --- | -------- | ----- |
 | 1 | HDFC Large Cap Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
 | 2 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
 | 3 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
@@ -539,7 +539,7 @@ Every query logs:
 ### 12.2 Key Information Memorandum (KIM) — 5 Documents
 
 | # | Scheme | URL |
-|---|--------|-----|
+| --- | -------- | ----- |
 | 6 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
 | 7 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct` |
 | 8 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct` |
@@ -549,37 +549,37 @@ Every query logs:
 ### 12.3 Statement of Additional Information (SAI) — 1 Document
 
 | # | Document | URL |
-|---|----------|-----|
+| --- | ---------- | ----- |
 | 11 | HDFC AMC SAI (covers all schemes) | `https://www.hdfcfund.com/literature/statement-of-additional-information` |
 
 ### 12.4 Scheme Summary — 1 Document
 
 | # | Document | URL |
-|---|----------|-----|
+| --- | ---------- | ----- |
 | 12 | All Schemes Summary | `https://www.hdfcfund.com/investor-services/fund-documents/scheme-summary` |
 
 ### 12.5 Monthly Factsheets — 1 Document
 
 | # | Document | URL |
-|---|----------|-----|
+| --- | ---------- | ----- |
 | 13 | All Schemes Factsheets | `https://www.hdfcfund.com/investor-services/factsheets` |
 
 ### 12.6 Leaflets — 1 Document
 
 | # | Document | URL |
-|---|----------|-----|
+| --- | ---------- | ----- |
 | 14 | All Schemes Leaflets | `https://www.hdfcfund.com/investor-services/fund-literature/leaflets` |
 
 ### 12.7 Presentations — 1 Document
 
 | # | Document | URL |
-|---|----------|-----|
+| --- | ---------- | ----- |
 | 15 | All Schemes Presentations | `https://www.hdfcfund.com/investor-services/fund-literature/presentation` |
 
 ### 12.5 AMFI Data Sources — 4 Documents
 
 | # | Document | URL |
-|---|----------|-----|
+| --- | ---------- | ----- |
 | 17 | Daily NAV (all schemes) | `https://www.amfiindia.com/spages/NAVAll.txt` |
 | 18 | Scheme Master Data | `https://www.amfiindia.com/research-information/other-data/scheme-master` |
 | 19 | Monthly AUM Data | `https://www.amfiindia.com/research-information/aum-data/aum-month-end` |
@@ -588,7 +588,7 @@ Every query logs:
 ### 12.6 SEBI Regulatory References — 5 Documents
 
 | # | Document | URL |
-|---|----------|-----|
+| --- | ---------- | ----- |
 | 21 | Mutual Fund Categorization | `https://www.sebi.gov.in/legal/circulars/oct-2017/categorization-and-rationalization-of-mutual-fund-schemes_36199.html` |
 | 22 | Total Expense Ratio Limits | `https://www.sebi.gov.in/legal/circulars/sep-2018/total-expense-ratio-of-mutual-fund-schemes_40505.html` |
 | 23 | Risk-o-Meter Guidelines | `https://www.sebi.gov.in/legal/circulars/oct-2020/circular-on-product-labeling-in-mutual-funds-_47868.html` |
@@ -598,7 +598,7 @@ Every query logs:
 ### 12.7 Document Inventory Summary
 
 | Category | Count | Update Frequency |
-|----------|-------|------------------|
+| ---------- | ------- | ------------------ |
 | SID | 5 | Annual / On change |
 | KIM | 5 | Annual / On change |
 | SAI | 1 | Annual |
@@ -614,7 +614,7 @@ Every query logs:
 ### 13.1 Factual Queries (Should Answer)
 
 | # | Query | Expected Response Pattern |
-|---|-------|---------------------------|
+| --- | ------- | --------------------------- |
 | 1 | "What is the expense ratio of HDFC Large Cap Fund?" | "The Total Expense Ratio (TER) for HDFC Large Cap Fund - Regular Plan is X.XX%... [Source: hdfcfund.com/...]" |
 | 2 | "What is the lock-in period for HDFC ELSS?" | "HDFC Tax Saver (ELSS) has a mandatory lock-in period of 3 years... [Source: hdfcfund.com/...]" |
 | 3 | "Who is the fund manager of HDFC Flexi Cap Fund?" | "HDFC Flexi Cap Fund is managed by [Name]... [Source: hdfcfund.com/...]" |
@@ -624,7 +624,7 @@ Every query logs:
 ### 13.2 Refusal Queries (Should Refuse)
 
 | # | Query | Expected Classifier Label | Expected Response |
-|---|-------|---------------------------|-------------------|
+| --- | ------- | --------------------------- | ------------------- |
 | 1 | "Is HDFC Large Cap better than SBI Bluechip?" | `investment advice` (score > 0.7) | "I cannot provide fund comparisons... consult a SEBI-registered advisor. [Source: N/A]" |
 | 2 | "Should I invest in HDFC ELSS for tax saving?" | `investment advice` (keyword: "should I invest") | Immediate refusal via keyword blocklist |
 | 3 | "Which HDFC fund will give best returns?" | `investment advice` (keywords: "which fund", "best") | Immediate refusal via keyword blocklist |
@@ -635,7 +635,7 @@ Every query logs:
 ### 13.3 Edge Cases (Requires Careful Handling)
 
 | # | Query | Classification | Expected Handling |
-|---|-------|----------------|-------------------|
+| --- | ------- | ---------------- | ------------------- |
 | 1 | "What was the 5-year return of HDFC Large Cap?" | Factual | Answer if historical return exists in source docs |
 | 2 | "Is HDFC Large Cap safe?" | Opinion request | Refuse — subjective/opinion |
 | 3 | "What is the risk category of HDFC Liquid Fund?" | Factual | Answer with SEBI risk-o-meter rating |
@@ -645,7 +645,7 @@ Every query logs:
 ### 13.4 Confidence Gate Test Cases
 
 | # | Query | Expected Behavior |
-|---|-------|-------------------|
+| --- | ------- | ------------------- |
 | 1 | "What is the weather today?" | All retrieval scores < 0.4 → Immediate refusal without LLM call |
 | 2 | "Tell me about Bitcoin" | All retrieval scores < 0.4 → Immediate refusal without LLM call |
 | 3 | "Explain quantum computing" | All retrieval scores < 0.4 → Immediate refusal without LLM call |
@@ -661,7 +661,7 @@ Every query logs:
 
 **Disclaimer Text (Fixed)**:
 
-```
+```text
 ⚠️ DISCLAIMER: This is a facts-only assistant. No investment advice.
 • Answers are sourced from official HDFC AMC, AMFI, and SEBI documents.
 • This tool does NOT provide personalized investment recommendations.
@@ -672,14 +672,14 @@ Every query logs:
 ### 14.2 Disclaimer Placement
 
 | Location | Display Style |
-|----------|---------------|
+| ---------- | --------------- |
 | **Header Banner** | Persistent yellow/orange banner at top of page. Non-dismissible. |
 | **Chat Input Area** | Subtle reminder above input: "Ask factual questions only. No advice provided." |
 | **Response Footer** | Every response ends with: "📖 This is factual information, not investment advice." |
 
 ### 14.3 UI Component Specifications
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  ⚠️ FACTS ONLY — NO INVESTMENT ADVICE  │  [Disclaimer Banner - Yellow]      │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -715,7 +715,7 @@ Every query logs:
 ### 14.4 Legal & Compliance Notes
 
 | Requirement | Implementation |
-|-------------|----------------|
+| ------------- | ---------------- |
 | **SEBI Compliance** | Disclaimer follows SEBI advertising guidelines for mutual funds |
 | **No Personalization** | No user accounts, no saved preferences, no personalized suggestions |
 | **Audit-Ready** | All queries and responses logged with timestamps |
@@ -726,7 +726,7 @@ Every query logs:
 ## 15. Summary Checklist
 
 | Requirement | Solution |
-|-------------|----------|
+| ------------- | ---------- |
 | ✅ One AMC, 3-5 schemes | HDFC AMC: Large Cap, Flexi Cap, ELSS, Balanced Advantage, Liquid |
 | ✅ RAG pipeline | PyMuPDF4LLM → Semantic Chunking → BGE-M3 → ChromaDB → Rerank → Mistral 7B |
 | ✅ Open-source tools | All components OSS (Apache/MIT licensed) |
