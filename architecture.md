@@ -15,17 +15,20 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 ## 2. Scope & Constraints
 
 ### 2.1 In-Scope
+
 - Factual information about mutual fund schemes (NAV, expense ratio, fund manager, objective, risk category, etc.)
 - Scheme-level metadata from official AMC/AMFI/SEBI sources
 - Single-citation answers (≤3 sentences)
 
 ### 2.2 Out-of-Scope
+
 - Investment advice, return predictions, or portfolio recommendations
 - PII ingestion or user-specific data handling
 - Comparative analysis or "best fund" queries
 - Real-time NAV updates (static snapshots only)
 
 ### 2.3 Hard Constraints
+
 | Constraint | Enforcement |
 |------------|-------------|
 | Public sources only | Whitelisted domains in scraper |
@@ -42,6 +45,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 ### 3.1 AMC Selection: **HDFC Asset Management Company**
 
 **Rationale**:
+
 - One of India's largest AMCs with comprehensive public documentation
 - Well-structured SID/SAI/KIM documents available on official website
 - Consistent document formatting aids reliable parsing
@@ -73,28 +77,28 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 ### 4.1 High-Level Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────────┐
 │                              INGESTION PIPELINE                              │
-├─────────────────────────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────────────────────────┤
 │  [PDF/HTML Sources] → [Document Parser] → [Chunker] → [Embedder] → [VectorDB]│
 │         ↓                    ↓                ↓            ↓           ↓     │
-│   SID/SAI/KIM          PyMuPDF4LLM      Semantic      BGE-M3     ChromaDB   │
-│   AMFI Pages           BeautifulSoup    512 tokens               (local)    │
-└─────────────────────────────────────────────────────────────────────────────┘
+│   SID/SAI/KIM          PyMuPDF4LLM      Semantic      BGE-M3     ChromaDB    │
+│   AMFI Pages           BeautifulSoup    512 tokens               (local)     │
+└──────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────────┐
 │                              QUERY PIPELINE                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  [User Query] → [Refusal Check] → [Query Embed] → [Retrieve] → [Rerank]     │
-│       ↓              ↓                 ↓             ↓            ↓         │
-│   Sanitize      Classifier          BGE-M3      Top-20      CrossEncoder    │
-│                 + Keywords                      chunks       → Top-3        │
-│                                                                             │
-│  [Reranked Chunks] → [LLM Generation] → [Citation Validator] → [Response]  │
-│         ↓                   ↓                    ↓                 ↓        │
-│    Context +            Mistral 7B         Regex + URL         Factual     │
-│    Metadata             (local)            Verification        Answer      │
-└─────────────────────────────────────────────────────────────────────────────┘
+├──────────────────────────────────────────────────────────────────────────────┤
+│  [User Query] → [Refusal Check] → [Query Embed] → [Retrieve] → [Rerank]      │
+│       ↓              ↓                 ↓             ↓            ↓          │
+│   Sanitize      Classifier          BGE-M3      Top-20      CrossEncoder     │
+│                 + Keywords                      chunks       → Top-3         │
+│                                                                              │
+│  [Reranked Chunks] → [LLM Generation] → [Citation Validator] → [Response]    │
+│         ↓                   ↓                    ↓                 ↓         │
+│    Context +            Mistral 7B         Regex + URL         Factual       │
+│    Metadata             (local)            Verification        Answer        │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 4.2 Component Breakdown
@@ -108,6 +112,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 | Metadata Extractor | Custom Python | Extract: scheme name, AMFI code, document type, publication date, source URL |
 
 **Document Preprocessing**:
+
 - Remove headers/footers (page numbers, disclaimers repeated on every page)
 - Normalize whitespace and encoding (UTF-8)
 - Extract tables as structured markdown
@@ -133,6 +138,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 | **Special Handling** | Tables chunked as atomic units | Tables (expense ratios, risk-o-meter) must not be split mid-row. |
 
 **Chunk Metadata Schema**:
+
 ```
 {
   "chunk_id": "uuid",
@@ -158,6 +164,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 | **Inference** | Local via `sentence-transformers` | No external API calls. Full data sovereignty. |
 
 **Embedding Pipeline**:
+
 1. Prepend instruction prefix: `"Represent this financial document for retrieval: "`
 2. Batch embed (batch size = 32)
 3. Normalize to unit vectors (cosine similarity)
@@ -174,6 +181,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 | **Distance Metric** | Cosine Similarity | Standard for normalized embeddings. |
 
 **Collection Schema**:
+
 ```
 Collection: "hdfc_mf_faq"
   - Vectors: 1024-dim (BGE-M3)
@@ -192,6 +200,7 @@ Collection: "hdfc_mf_faq"
 | **Final Output** | Top-3 chunks with metadata | Passed to LLM as context. |
 
 **Retrieval Augmentations**:
+
 - **Query Expansion**: For abbreviations (ELSS → "Equity Linked Savings Scheme")
 - **Hybrid Search**: BM25 keyword fallback if dense retrieval returns low-confidence results (score < 0.5)
 
@@ -213,6 +222,7 @@ Collection: "hdfc_mf_faq"
 | STP | Systematic Transfer Plan | Fund-to-fund transfers |
 
 **Query Expansion Logic**:
+
 ```
 1. Tokenize user query
 2. For each token, check if it matches an acronym (case-insensitive)
@@ -298,7 +308,7 @@ A: I cannot provide investment advice or recommendations. For personalized guida
 ┌─────────────────────────────────────────────────────────────────┐
 │                   CITATION VALIDATOR                            │
 ├─────────────────────────────────────────────────────────────────┤
-│  [LLM Response] → [Regex Extraction] → [URL Validation] → [OK] │
+│  [LLM Response] → [Regex Extraction] → [URL Validation] → [OK]  │
 │        ↓                 ↓                   ↓             ↓    │
 │   Raw text       `\[Source: (https?://[^\]]+)\]`  Domain check  │
 │                                               ↓                 │
@@ -318,6 +328,7 @@ A: I cannot provide investment advice or recommendations. For personalized guida
 ### 6.4 Fallback Behavior
 
 If LLM fails to include citation after 2 retries:
+
 1. Append citation from highest-ranked retrieved chunk's `source_url`
 2. Log incident for review
 3. Return answer (never return without citation)
@@ -340,6 +351,7 @@ If LLM fails to include citation after 2 retries:
 | **Threshold** | If `investment advice` or `opinion request` score > 0.7 → Refuse immediately |
 
 **Keyword Blocklist** (triggers immediate refusal):
+
 ```
 ["should I invest", "best fund", "which fund", "buy or sell", "recommend", 
  "better fund", "good returns", "SIP suggestion", "portfolio", "allocate"]
@@ -634,6 +646,7 @@ Every query logs:
 > The following disclaimer MUST be displayed prominently on every page of the UI.
 
 **Disclaimer Text (Fixed)**:
+
 ```
 ⚠️ DISCLAIMER: This is a facts-only assistant. No investment advice.
 • Answers are sourced from official HDFC AMC, AMFI, and SEBI documents.
@@ -658,8 +671,8 @@ Every query logs:
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │  🏦 Groww Mutual Fund FAQ                                           │   │
-│   │  Ask factual questions about HDFC mutual fund schemes              │   │
+│   │  🏦 Groww Mutual Fund FAQ                                          │   │
+│   │  Ask factual questions about HDFC mutual fund schemes               │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
@@ -681,7 +694,7 @@ Every query logs:
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  Sources: HDFC AMC | AMFI | SEBI  •  For advice, consult a SEBI advisor    │
+│  Sources: HDFC AMC | AMFI | SEBI  •  For advice, consult a SEBI advisor     │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -721,4 +734,3 @@ Every query logs:
 ---
 
 *Document prepared for Groww RAG MVP — Facts Only, Citations Always.*
-
