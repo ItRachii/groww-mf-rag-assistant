@@ -52,13 +52,13 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 
 ### 3.2 Selected Schemes (5 Schemes)
 
-| Scheme Name | Category | AMFI Code | Rationale |
-|-------------|----------|-----------|-----------|
-| HDFC Top 100 Fund | Large Cap | 100032 | Blue-chip exposure, stable documentation |
-| HDFC Flexi Cap Fund | Flexi Cap | 100394 | Multi-cap flexibility, popular scheme |
-| HDFC Tax Saver (ELSS) | ELSS | 100186 | Tax-saving category, 3-year lock-in rules |
-| HDFC Balanced Advantage Fund | Hybrid | 100171 | Dynamic asset allocation rules |
-| HDFC Liquid Fund | Liquid | 100027 | Low-risk category, distinct risk profile |
+| Scheme Name | Category | Sub-Category | Plan | AMFI Code | Rationale |
+|-------------|----------|--------------|------|-----------|-----------|
+| HDFC Large Cap Fund | Equity | Large Cap | Direct | 100032 | Blue-chip exposure, stable documentation |
+| HDFC Flexi Cap Fund | Equity | Flexi Cap | Direct | 100394 | Multi-cap flexibility, popular scheme |
+| HDFC Tax Saver (ELSS) | Equity | ELSS | Direct | 100186 | Tax-saving category, 3-year lock-in rules |
+| HDFC Balanced Advantage Fund | Hybrid | Dynamic | Direct | 100171 | Dynamic asset allocation rules |
+| HDFC Liquid Fund | Debt | Liquid | Direct | 100027 | Low-risk category, distinct risk profile |
 
 ### 3.3 Document Sources
 
@@ -144,7 +144,7 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
   "chunk_id": "uuid",
   "text": "...",
   "source_url": "https://hdfcfund.com/...",
-  "scheme_name": "HDFC Top 100 Fund",
+  "scheme_name": "HDFC Large Cap Fund",
   "amfi_code": "100032",
   "document_type": "SID|SAI|KIM",
   "section_title": "Investment Objective",
@@ -284,8 +284,8 @@ Include 2-3 examples in system prompt for format consistency:
 
 ```
 Example 1:
-Q: What is the expense ratio of HDFC Top 100 Fund?
-A: The Total Expense Ratio (TER) for HDFC Top 100 Fund - Regular Plan is 1.62% as of January 2026. This includes management fees and operational expenses. [Source: https://hdfcfund.com/literature/kim/hdfc-top-100-fund]
+Q: What is the expense ratio of HDFC Large Cap Fund?
+A: The Total Expense Ratio (TER) for HDFC Large Cap Fund - Regular Plan is 1.62% as of January 2026. This includes management fees and operational expenses. [Source: https://hdfcfund.com/literature/kim/hdfc-top-100-fund]
 
 Example 2:
 Q: Should I invest in HDFC ELSS for tax saving?
@@ -382,9 +382,9 @@ For personalized guidance, please consult a SEBI-registered advisor. [Source: N/
 
 | Query Type | Handling |
 |------------|----------|
-| "What is the return of HDFC Top 100?" | Answer with historical return if in source docs (factual). |
-| "Will HDFC Top 100 give good returns?" | Refuse (prediction/advice). |
-| "Compare HDFC Top 100 and Flexi Cap" | Refuse (comparative = implicit advice). |
+| "What is the return of HDFC Large Cap?" | Answer with historical return if in source docs (factual). |
+| "Will HDFC Large Cap give good returns?" | Refuse (prediction/advice). |
+| "Compare HDFC Large Cap and Flexi Cap" | Refuse (comparative = implicit advice). |
 | "What is ELSS lock-in period?" | Answer (factual). |
 | "Is ELSS good for tax saving?" | Refuse (opinion). |
 
@@ -530,7 +530,7 @@ Every query logs:
 
 | # | Scheme | URL |
 |---|--------|-----|
-| 1 | HDFC Top 100 Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-top-100-fund` |
+| 1 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
 | 2 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-flexi-cap-fund` |
 | 3 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-taxsaver` |
 | 4 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-balanced-advantage-fund` |
@@ -540,7 +540,7 @@ Every query logs:
 
 | # | Scheme | URL |
 |---|--------|-----|
-| 6 | HDFC Top 100 Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-top-100-fund` |
+| 6 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
 | 7 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-flexi-cap-fund` |
 | 8 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-taxsaver` |
 | 9 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-balanced-advantage-fund` |
@@ -556,7 +556,7 @@ Every query logs:
 
 | # | Scheme | URL |
 |---|--------|-----|
-| 12 | HDFC Top 100 Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-top-100-fund` |
+| 12 | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` |
 | 13 | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-flexi-cap-fund` |
 | 14 | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/factsheet/hdfc-taxsaver` |
 | 15 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-balanced-advantage-fund` |
@@ -601,7 +601,7 @@ Every query logs:
 
 | # | Query | Expected Response Pattern |
 |---|-------|---------------------------|
-| 1 | "What is the expense ratio of HDFC Top 100 Fund?" | "The Total Expense Ratio (TER) for HDFC Top 100 Fund - Regular Plan is X.XX%... [Source: hdfcfund.com/...]" |
+| 1 | "What is the expense ratio of HDFC Large Cap Fund?" | "The Total Expense Ratio (TER) for HDFC Large Cap Fund - Regular Plan is X.XX%... [Source: hdfcfund.com/...]" |
 | 2 | "What is the lock-in period for HDFC ELSS?" | "HDFC Tax Saver (ELSS) has a mandatory lock-in period of 3 years... [Source: hdfcfund.com/...]" |
 | 3 | "Who is the fund manager of HDFC Flexi Cap Fund?" | "HDFC Flexi Cap Fund is managed by [Name]... [Source: hdfcfund.com/...]" |
 | 4 | "What is the minimum SIP amount for HDFC Liquid Fund?" | "The minimum SIP investment in HDFC Liquid Fund is ₹X... [Source: hdfcfund.com/...]" |
@@ -611,7 +611,7 @@ Every query logs:
 
 | # | Query | Expected Classifier Label | Expected Response |
 |---|-------|---------------------------|-------------------|
-| 1 | "Is HDFC Top 100 better than SBI Bluechip?" | `investment advice` (score > 0.7) | "I cannot provide fund comparisons... consult a SEBI-registered advisor. [Source: N/A]" |
+| 1 | "Is HDFC Large Cap better than SBI Bluechip?" | `investment advice` (score > 0.7) | "I cannot provide fund comparisons... consult a SEBI-registered advisor. [Source: N/A]" |
 | 2 | "Should I invest in HDFC ELSS for tax saving?" | `investment advice` (keyword: "should I invest") | Immediate refusal via keyword blocklist |
 | 3 | "Which HDFC fund will give best returns?" | `investment advice` (keywords: "which fund", "best") | Immediate refusal via keyword blocklist |
 | 4 | "Recommend a good SIP for beginners" | `investment advice` (keyword: "recommend") | Immediate refusal via keyword blocklist |
@@ -622,8 +622,8 @@ Every query logs:
 
 | # | Query | Classification | Expected Handling |
 |---|-------|----------------|-------------------|
-| 1 | "What was the 5-year return of HDFC Top 100?" | Factual | Answer if historical return exists in source docs |
-| 2 | "Is HDFC Top 100 safe?" | Opinion request | Refuse — subjective/opinion |
+| 1 | "What was the 5-year return of HDFC Large Cap?" | Factual | Answer if historical return exists in source docs |
+| 2 | "Is HDFC Large Cap safe?" | Opinion request | Refuse — subjective/opinion |
 | 3 | "What is the risk category of HDFC Liquid Fund?" | Factual | Answer with SEBI risk-o-meter rating |
 | 4 | "Compare ELSS lock-in with PPF lock-in" | Off-topic (PPF not in scope) | Refuse — cannot answer about PPF |
 | 5 | "What is NAV?" | Factual (general) | Answer with definition from AMFI source |
@@ -713,7 +713,7 @@ Every query logs:
 
 | Requirement | Solution |
 |-------------|----------|
-| ✅ One AMC, 3-5 schemes | HDFC AMC: Top 100, Flexi Cap, ELSS, Balanced Advantage, Liquid |
+| ✅ One AMC, 3-5 schemes | HDFC AMC: Large Cap, Flexi Cap, ELSS, Balanced Advantage, Liquid |
 | ✅ RAG pipeline | PyMuPDF4LLM → Semantic Chunking → BGE-M3 → ChromaDB → Rerank → Mistral 7B |
 | ✅ Open-source tools | All components OSS (Apache/MIT licensed) |
 | ✅ Embedding model rationale | BGE-M3: multilingual, 1024-dim, local inference, SOTA quality |

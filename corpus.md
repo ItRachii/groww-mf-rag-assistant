@@ -20,47 +20,49 @@
 
 ## 2. Selected Schemes
 
-| # | Scheme Name | Category | AMFI Code | Rationale |
-|---|-------------|----------|-----------|-----------|
-| 1 | HDFC Top 100 Fund | Large Cap | 100032 | Blue-chip, stable documentation |
-| 2 | HDFC Flexi Cap Fund | Flexi Cap | 100394 | Multi-cap flexibility |
-| 3 | HDFC Tax Saver (ELSS) | ELSS | 100186 | Tax-saving, lock-in rules |
-| 4 | HDFC Balanced Advantage Fund | Hybrid | 100171 | Dynamic allocation |
-| 5 | HDFC Liquid Fund | Liquid | 100027 | Low-risk category |
+| # | Scheme Name | Category | Sub-Category | Plan | AMFI Code | Rationale |
+|---|-------------|----------|--------------|------|-----------|-----------|
+| 1 | HDFC Large Cap Fund | Equity | Large Cap | Direct | 100032 | Blue-chip, stable documentation |
+| 2 | HDFC Flexi Cap Fund | Equity | Flexi Cap | Direct | 100394 | Multi-cap flexibility |
+| 3 | HDFC Tax Saver (ELSS) | Equity | ELSS | Direct | 100186 | Tax-saving, lock-in rules |
+| 4 | HDFC Balanced Advantage Fund | Hybrid | Dynamic | Direct | 100171 | Dynamic allocation |
+| 5 | HDFC Liquid Fund | Debt | Liquid | Direct | 100027 | Low-risk category |
 
 ---
 
 ## 3. Complete Corpus (25 URLs)
 
-### 3.1 Scheme Information Documents (SID) — Fund Objectives, Risk Factors, Investment Strategy
+### 3.1 Scheme Product Pages (SID/KIM/Factsheet available via Downloads tab)
 
 | # | AMC | Scheme | URL | Document Type | Expected Facts |
 |---|-----|--------|-----|---------------|----------------|
-| 1 | HDFC AMC | HDFC Top 100 Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-top-100-fund` | SID | Investment objective, asset allocation, risk factors, fund manager details |
-| 2 | HDFC AMC | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-flexi-cap-fund` | SID | Investment objective, multi-cap strategy, risk factors |
-| 3 | HDFC AMC | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-taxsaver` | SID | 3-year lock-in, Section 80C eligibility, investment objective |
-| 4 | HDFC AMC | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-balanced-advantage-fund` | SID | Dynamic equity-debt allocation model, rebalancing rules |
-| 5 | HDFC AMC | HDFC Liquid Fund | `https://www.hdfcfund.com/literature/scheme-information-document/hdfc-liquid-fund` | SID | Investment in money market instruments, maturity limits |
+| 1 | HDFC AMC | HDFC Large Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct` | Product Page | Investment objective, TER, exit load, SIP min, fund manager |
+| 2 | HDFC AMC | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct` | Product Page | Investment objective, multi-cap strategy, TER |
+| 3 | HDFC AMC | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct` | Product Page | 3-year lock-in, Section 80C, TER |
+| 4 | HDFC AMC | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-balanced-advantage-fund/direct` | Product Page | Dynamic equity-debt allocation, TER |
+| 5 | HDFC AMC | HDFC Liquid Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-liquid-fund/direct` | Product Page | Money market instruments, exit load, YTM |
 
-### 3.2 Key Information Memorandum (KIM) — Expense Ratio, Exit Load, SIP Minimums
-
-| # | AMC | Scheme | URL | Document Type | Expected Facts |
-|---|-----|--------|-----|---------------|----------------|
-| 6 | HDFC AMC | HDFC Top 100 Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-top-100-fund` | KIM | TER (Regular/Direct), exit load (1% if < 1 year), min SIP ₹500 |
-| 7 | HDFC AMC | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-flexi-cap-fund` | KIM | TER, exit load structure, min lumpsum ₹100 |
-| 8 | HDFC AMC | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-taxsaver` | KIM | TER, no exit load (lock-in applies), min SIP ₹500 |
-| 9 | HDFC AMC | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-balanced-advantage-fund` | KIM | TER, exit load (1% if < 1 year), min investment |
-| 10 | HDFC AMC | HDFC Liquid Fund | `https://www.hdfcfund.com/literature/key-information-memorandum/hdfc-liquid-fund` | KIM | TER (~0.20%), graded exit load (Day 1-7), min ₹100 |
-
-### 3.3 Monthly Factsheets — Benchmark, Returns, Portfolio Holdings, Riskometer
+### 3.2 Scheme Information Documents (SID) — Fund Objectives, Risk Factors
 
 | # | AMC | Scheme | URL | Document Type | Expected Facts |
 |---|-----|--------|-----|---------------|----------------|
-| 11 | HDFC AMC | HDFC Top 100 Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-top-100-fund` | Factsheet | Benchmark (Nifty 100 TRI), AUM, top 10 holdings, riskometer |
-| 12 | HDFC AMC | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-flexi-cap-fund` | Factsheet | Benchmark (Nifty 500 TRI), sector allocation, returns |
-| 13 | HDFC AMC | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/literature/factsheet/hdfc-taxsaver` | Factsheet | Benchmark (Nifty 500 TRI), riskometer, 1/3/5 year returns |
-| 14 | HDFC AMC | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-balanced-advantage-fund` | Factsheet | Equity-debt split, benchmark, dynamic allocation % |
-| 15 | HDFC AMC | HDFC Liquid Fund | `https://www.hdfcfund.com/literature/factsheet/hdfc-liquid-fund` | Factsheet | Benchmark (CRISIL Liquid AI), avg maturity, YTM |
+| 6 | HDFC AMC | HDFC Large Cap Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` | SID | Investment objective, asset allocation, risk factors |
+| 7 | HDFC AMC | HDFC Flexi Cap Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` | SID | Multi-cap strategy, risk factors |
+| 8 | HDFC AMC | HDFC Tax Saver (ELSS) | `https://www.hdfcfund.com/investor-services/fund-documents/sid` | SID | Lock-in period, Section 80C eligibility |
+| 9 | HDFC AMC | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` | SID | Dynamic allocation model |
+| 10 | HDFC AMC | HDFC Liquid Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` | SID | Money market instruments |
+
+### 3.3 Key Information Memorandum (KIM) — Expense Ratio, Exit Load, SIP Minimums
+
+| # | AMC | Scheme | URL | Document Type | Expected Facts |
+|---|-----|--------|-----|---------------|----------------|
+| 11 | HDFC AMC | All Schemes | `https://www.hdfcfund.com/investor-services/fund-documents/kim` | KIM | TER, exit load, min SIP/lumpsum |
+
+### 3.4 Monthly Factsheets — Benchmark, Returns, Portfolio Holdings, Riskometer
+
+| # | AMC | Scheme | URL | Document Type | Expected Facts |
+|---|-----|--------|-----|---------------|----------------|
+| 12 | HDFC AMC | All Schemes | `https://www.hdfcfund.com/literature/scheme-factsheet` | Factsheet | Benchmark, AUM, holdings, riskometer |
 
 ### 3.4 Statement of Additional Information (SAI) — AMC Details, Legal Structure
 
