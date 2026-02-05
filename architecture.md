@@ -132,26 +132,81 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 
 #### 4.2.2 Chunking Strategy
 
+**Standard Chunks**:
+
 | Parameter | Value | Rationale |
 | ----------- | ------- | ----------- |
-| **Chunk Size** | 512 tokens | Optimal for BGE-M3 (max 8192, but 512 balances granularity vs context). Financial docs have dense info; smaller chunks = precise retrieval. |
-| **Overlap** | 64 tokens (~12.5%) | Preserves context at boundaries. Important for sentences spanning chunk edges. |
+| **Chunk Size** | 512 tokens (~350-400 words) | Mutual fund facts (expense ratio, exit load) typically span 1-3 sentences. 512 tokens isolates single facts while providing sufficient context. Matches BGE-M3 optimal input range. |
+| **Overlap** | 64 tokens (12.5%) | Ensures boundary sentences aren't orphaned. Critical for facts split across paragraphs. |
 | **Chunking Method** | **Semantic Chunking** (LangChain `SemanticChunker`) | Respects paragraph/section boundaries. Falls back to token-based if semantic splitting fails. |
-| **Special Handling** | Tables chunked as atomic units | Tables (expense ratios, risk-o-meter) must not be split mid-row. |
 
-**Chunk Metadata Schema**:
+**Atomic Units (Override Rules)**:
+
+| Content Type | Rule | Max Size | Justification |
+| -------------- | ------ | ---------- | --------------- |
+| **Tables** | Entire table = 1 chunk; never split mid-row | 2048 tokens | Splitting tables creates fragments that fail to answer "What is the exit load?" |
+| **List blocks** | Preserve complete numbered/bulleted lists | 1024 tokens | Exit load slabs, SIP options must stay together |
+| **Scheme sections** | "Investment Objective", "Risk Factors" atomic | 1024 tokens | These are frequently asked as single questions |
+
+**Fallback for Oversized Atoms**:
+
+- If table > 2048 tokens → split by logical row groups, repeat header row in each split
+- Tag each split with `is_partial: true`, `parent_chunk_id: <original_uuid>`
+- If list > 1024 tokens → split at natural groupings (e.g., category breaks)
+
+#### 4.2.3 Chunk Metadata Schema
+
+> [!IMPORTANT]
+> Every chunk **must** carry these fields. Ingestion fails if any mandatory field is null.
+
+**Mandatory Fields**:
+
+| Field | Type | Example | Purpose |
+| ------- | ------ | --------- | --------- |
+| `chunk_id` | UUID | `f47ac10b-58cc-...` | Unique identifier for deduplication and audit |
+| `amc_name` | string | `HDFC Asset Management Company` | AMC-level filtering; prevents cross-AMC contamination |
+| `scheme_name` | string | `HDFC Large Cap Fund` | Primary filter for scheme-specific queries |
+| `scheme_code` | string | `100032` | AMFI code for unambiguous scheme identification |
+| `plan_type` | enum | `Direct` / `Regular` | Critical—TER and returns differ between plans |
+| `fact_type` | enum | See below | Semantic tagging for precision retrieval |
+| `source_url` | URL | `https://hdfcfund.com/...` | Citation source; must be whitelisted domain |
+| `document_type` | enum | `SID` / `KIM` / `SAI` / `Factsheet` / `AMFI` / `SEBI` | Source authority classification |
+| `section_title` | string | `Exit Load Structure` | Aids retrieval and audit |
+| `extraction_date` | ISO 8601 | `2026-02-04T10:30:00Z` | When chunk was ingested (freshness indicator) |
+| `document_date` | ISO 8601 | `2026-01-01` | Official publication date of source document |
+| `page_number` | int | `12` | For PDF sources; aids manual verification |
+| `is_table` | boolean | `true` | Triggers atomic chunking rules |
+| `table_type` | enum | `expense_ratio` / `exit_load` / `nav_history` / null | Fine-grained table classification |
+| `checksum` | SHA-256 | `a3f2b1...` | Detects document changes on re-ingestion |
+
+**`fact_type` Enum Values**:
+
+```text
+expense_ratio, exit_load, fund_manager, investment_objective, risk_category,
+benchmark, sip_minimum, lumpsum_minimum, aum, nav, lock_in_period,
+fund_holdings, returns_historical, scheme_launch_date, general_info
+```
+
+**Sample Chunk Metadata**:
 
 ```json
 {
-  "chunk_id": "uuid",
-  "text": "...",
-  "source_url": "https://hdfcfund.com/...",
+  "chunk_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "text": "The Total Expense Ratio for HDFC Large Cap Fund - Direct Plan is 1.08%...",
+  "amc_name": "HDFC Asset Management Company",
   "scheme_name": "HDFC Large Cap Fund",
-  "amfi_code": "100032",
-  "document_type": "SID|SAI|KIM",
-  "section_title": "Investment Objective",
-  "extraction_date": "2026-02-04",
-  "page_number": 12
+  "scheme_code": "100032",
+  "plan_type": "Direct",
+  "fact_type": "expense_ratio",
+  "source_url": "https://hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct",
+  "document_type": "KIM",
+  "section_title": "Total Expense Ratio",
+  "extraction_date": "2026-02-04T10:30:00Z",
+  "document_date": "2026-01-01",
+  "page_number": 3,
+  "is_table": false,
+  "table_type": null,
+  "checksum": "a3f2b1c4d5e6f7..."
 }
 ```
 
@@ -246,53 +301,206 @@ Collection: "hdfc_mf_faq"
 
 ---
 
-## 5. Prompting Strategy for Factual Accuracy
+## 5. Final Prompts for LLM
 
-### 5.1 System Prompt (Fixed)
+> [!CAUTION]
+> These prompts are production-ready. Any modification must be tested against the full test suite before deployment.
+
+### 5.1 Final System Prompt
 
 ```text
-You are a factual FAQ assistant for Groww, answering questions about HDFC mutual fund schemes.
+You are a FACTS-ONLY assistant for Groww, answering questions about HDFC mutual fund schemes.
 
-STRICT RULES:
-1. Answer ONLY using the provided context. Do not use prior knowledge.
-2. If the context does not contain the answer, say: "I don't have this information in my sources."
-3. Keep answers to 3 sentences maximum.
-4. End every answer with exactly one citation in this format: [Source: <URL>]
-5. Never provide investment advice, return predictions, or fund comparisons.
-6. Never recommend buying, selling, or holding any fund.
-7. If asked for advice or opinions, politely refuse.
+═══════════════════════════════════════════════════════════════════════════════
+                              ABSOLUTE RULES
+═══════════════════════════════════════════════════════════════════════════════
 
+1. GROUNDING REQUIREMENT
+   • Answer ONLY using the CONTEXT provided below.
+   • Do NOT use prior knowledge, training data, or assumptions.
+   • If the CONTEXT does not contain the answer → REFUSE (see Rule 6).
+
+2. FORBIDDEN CONTENT — Never generate any of the following:
+   ✗ Investment advice ("you should invest", "I recommend", "consider buying")
+   ✗ Performance predictions ("will give good returns", "expected to grow")
+   ✗ Fund comparisons ("X is better than Y", "choose X over Y")
+   ✗ Portfolio recommendations ("allocate X%", "best fund for your goal")
+   ✗ Subjective opinions ("safe fund", "risky", "good/bad fund")
+   ✗ Future forecasts ("next year", "in 5 years", "market outlook")
+
+3. FORMAT REQUIREMENTS
+   • Maximum 3 sentences.
+   • End with exactly ONE citation: [Source: <URL>]
+   • Use ₹ symbol for currency, % for ratios.
+   • State facts directly; no hedging language.
+
+4. CITATION RULES
+   • Citation URL must be from the CONTEXT.
+   • Use the source_url from the most relevant retrieved chunk.
+   • Format: [Source: https://...]
+   • For refusals, use: [Source: N/A]
+
+5. RESPONSE FOOTER (Always append after citation)
+   📅 Last updated from sources: {extraction_date}
+   📖 This is factual information, not investment advice.
+
+6. WHEN TO REFUSE
+   Refuse politely if ANY of these are true:
+   • Context does not contain the answer
+   • Question asks for advice, opinions, or predictions
+   • Question asks to compare funds
+   • Question is about a scheme not in the context
+   • You are uncertain about the accuracy
+
+   REFUSAL RESPONSE (use exactly):
+   "I don't have this information in my verified sources. For accurate 
+   details, please visit the official HDFC AMC website or consult a 
+   SEBI-registered investment advisor.
+   [Source: N/A]
+   📅 This is factual information, not investment advice."
+
+═══════════════════════════════════════════════════════════════════════════════
+                              FEW-SHOT EXAMPLES
+═══════════════════════════════════════════════════════════════════════════════
+
+EXAMPLE 1 — Factual Query (ANSWER):
+User: What is the expense ratio of HDFC Large Cap Fund Direct Plan?
+Assistant: The Total Expense Ratio (TER) for HDFC Large Cap Fund - Direct Plan 
+is 1.08% as of January 2026. This includes fund management fees and operational 
+expenses.
+[Source: https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct]
+📅 Last updated from sources: 2026-02-04
+📖 This is factual information, not investment advice.
+
+EXAMPLE 2 — Advice Request (REFUSE):
+User: Should I invest in HDFC ELSS for tax saving?
+Assistant: I can only provide factual information and cannot offer investment 
+advice. For personalized guidance, please consult a SEBI-registered investment 
+advisor.
+[Source: N/A]
+📅 This is factual information, not investment advice.
+
+EXAMPLE 3 — Comparison Request (REFUSE):
+User: Which is better - HDFC Large Cap or HDFC Flexi Cap?
+Assistant: I cannot provide fund comparisons or recommendations. I can share 
+individual factual details about each fund if you have specific questions.
+[Source: N/A]
+📅 This is factual information, not investment advice.
+
+EXAMPLE 4 — Information Not in Context (REFUSE):
+User: What is the NAV of ICICI Prudential Bluechip Fund?
+Assistant: I don't have this information in my verified sources. I only have 
+data on HDFC mutual fund schemes. For ICICI fund details, please visit their 
+official website.
+[Source: N/A]
+📅 This is factual information, not investment advice.
+
+═══════════════════════════════════════════════════════════════════════════════
+                              BEGIN TASK
+═══════════════════════════════════════════════════════════════════════════════
+```
+
+### 5.2 User Prompt Template
+
+```text
 CONTEXT:
+────────────────────────────────────────────────────────────────────────────────
 {retrieved_chunks}
+────────────────────────────────────────────────────────────────────────────────
+
+METADATA:
+• Current Date: {current_date}
+• Extraction Date: {extraction_date}
+• Schemes in Context: {scheme_names}
 
 USER QUESTION: {query}
 
 FACTUAL ANSWER:
 ```
 
-### 5.2 Prompt Design Principles
+**Template Variables**:
 
-| Principle | Implementation |
-| ----------- | ---------------- |
-| **Grounding** | Context injected verbatim before query. Model instructed to use ONLY context. |
-| **Citation Format** | Explicit format `[Source: <URL>]` makes regex extraction reliable. |
-| **Refusal Instruction** | Explicit prohibition of advice in system prompt. |
-| **Brevity Enforcement** | "3 sentences maximum" + max_tokens=150. |
-| **Hallucination Prevention** | "Do not use prior knowledge" + low temperature (0.1). |
+| Variable | Source | Example |
+| ---------- | -------- | --------- |
+| `{retrieved_chunks}` | Top-3 reranked chunks, joined with `\n---\n` | Full chunk text with metadata |
+| `{current_date}` | System date | `2026-02-05` |
+| `{extraction_date}` | `min(chunk.extraction_date)` from retrieved chunks | `2026-02-04` |
+| `{scheme_names}` | Unique `scheme_name` values from chunks | `HDFC Large Cap Fund, HDFC Flexi Cap Fund` |
+| `{user_query}` | Sanitized user input | `What is the expense ratio?` |
 
-### 5.3 Few-Shot Examples (In-Context Learning)
+### 5.3 Refusal Templates
 
-Include 2-3 examples in system prompt for format consistency:
+**Template A: Investment Advice Refusal**
 
 ```text
-Example 1:
-Q: What is the expense ratio of HDFC Large Cap Fund?
-A: The Total Expense Ratio (TER) for HDFC Large Cap Fund - Regular Plan is 1.62% as of January 2026. This includes management fees and operational expenses. [Source: https://hdfcfund.com/literature/kim/hdfc-top-100-fund]
+I can only provide factual information and cannot offer investment advice or 
+recommendations. For personalized guidance, please consult a SEBI-registered 
+investment advisor.
 
-Example 2:
-Q: Should I invest in HDFC ELSS for tax saving?
-A: I cannot provide investment advice or recommendations. For personalized guidance, please consult a SEBI-registered investment advisor. [Source: N/A]
+📚 Learn about choosing an advisor: https://investor.sebi.gov.in/advisorycaution.html
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
 ```
+
+**Template B: Opinion/Speculation Refusal**
+
+```text
+I can only share objective facts from official sources. I cannot provide 
+subjective assessments, predictions, or opinions about mutual funds.
+
+📚 Learn about mutual fund risks: https://investor.sebi.gov.in/pdf/Mutual%20Fund%20booklet.pdf
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
+```
+
+**Template C: Out-of-Scope Refusal**
+
+```text
+I specialize in factual questions about HDFC mutual fund schemes only. I don't 
+have information on this topic in my verified sources.
+
+📚 For general investor education: https://www.amfiindia.com/investor-corner/investor-awareness.html
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
+```
+
+**Template D: Low Confidence / Not Found Refusal**
+
+```text
+I don't have reliable information on this in my verified sources. For accurate 
+details, please check the official HDFC AMC website.
+
+📚 Official HDFC Fund Information: https://www.hdfcfund.com/explore/mutual-funds
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
+```
+
+### 5.4 Prompt Design Principles
+
+| Principle | Implementation | Why It Matters |
+| ----------- | ---------------- | ---------------- |
+| **Explicit Grounding** | "Answer ONLY using the CONTEXT" | Prevents hallucination |
+| **Forbidden List** | 6 explicit categories with examples | Leaves no ambiguity |
+| **Format Lock** | "Maximum 3 sentences", "exactly ONE citation" | Ensures consistency |
+| **Refusal Instruction** | Complete refusal template in system prompt | Model learns exact format |
+| **Few-Shot Examples** | 4 examples covering answer + 3 refusal types | In-context learning |
+| **Visual Separators** | `═══` and `───` dividers | Helps model parse sections |
+| **Footer Requirement** | Freshness + disclaimer always present | Audit compliance |
+
+### 5.5 LLM Configuration
+
+| Parameter | Value | Rationale |
+| ----------- | ------- | ----------- |
+| **Temperature** | 0.1 | Near-deterministic; minimizes variation |
+| **Max Tokens** | 200 | Allows 3 sentences + citation + footer |
+| **Top-P** | 0.9 | Slight diversity while maintaining focus |
+| **Frequency Penalty** | 0.0 | No penalty; factual responses may repeat terms |
+| **Presence Penalty** | 0.0 | No penalty; allow consistent formatting |
+| **Stop Sequences** | `["\n\nUser:", "\n\nUSER:"]` | Prevent runaway generation |
 
 ---
 
@@ -337,58 +545,332 @@ If LLM fails to include citation after 2 retries:
 
 ---
 
-## 7. Refusal Logic
+## 7. Reasoning & Decision Logic
 
-### 7.1 Two-Layer Refusal System
+> [!IMPORTANT]
+> This section defines the complete decision-making framework for when to answer, when to refuse, and how to maintain factual accuracy.
 
-#### Layer 1: Pre-Retrieval Classifier
+### 7.1 Query Classification System
 
-**Purpose**: Block clearly off-topic or advice-seeking queries before wasting retrieval compute.
+**Class 1: ALLOWED — Factual Queries**
 
-| Component | Implementation |
-| ----------- | ---------------- |
-| **Method** | Keyword blocklist + Zero-shot classifier |
-| **Classifier** | `facebook/bart-large-mnli` (zero-shot NLI) |
-| **Labels** | `["factual question", "investment advice", "opinion request", "off-topic"]` |
-| **Threshold** | If `investment advice` or `opinion request` score > 0.7 → Refuse immediately |
+| Subclass | Description | Examples |
+| ---------- | ------------- | ---------- |
+| **Scheme Facts** | Specific numeric/textual facts about a scheme | "What is the expense ratio?", "Who is the fund manager?" |
+| **Scheme Definitions** | Definitions of scheme attributes | "What is the investment objective?", "What is the benchmark?" |
+| **General MF Facts** | Factual definitions from AMFI/SEBI | "What is NAV?", "What is ELSS lock-in period?" |
+| **Historical Data** | Past performance data (not predictions) | "What was the 5-year return?", "When was the fund launched?" |
 
-**Keyword Blocklist** (triggers immediate refusal):
+**Class 2: DISALLOWED — Advice/Opinion Queries**
 
-```python
-["should I invest", "best fund", "which fund", "buy or sell", "recommend",
- "better fund", "good returns", "SIP suggestion", "portfolio", "allocate"]
-```
+| Subclass | Description | Examples |
+| ---------- | ------------- | ---------- |
+| **Investment Advice** | Recommendations to buy/sell/hold | "Should I invest in...?", "Is this fund good?" |
+| **Predictions** | Future return forecasts | "Will this fund give good returns?", "Expected NAV?" |
+| **Comparisons** | Fund vs fund analysis | "Which is better, X or Y?", "Compare A and B" |
+| **Portfolio Advice** | Allocation recommendations | "How much should I invest?", "Best fund for my goal?" |
+| **Opinions** | Subjective assessments | "Is this fund safe?", "Is expense ratio too high?" |
 
-#### Layer 2: Post-Generation Validation
+**Class 3: OUT-OF-SCOPE — Unrelated Queries**
 
-Even if query passes Layer 1, LLM might still generate advice. Post-process:
+| Subclass | Description | Examples |
+| ---------- | ------------- | ---------- |
+| **Off-Topic** | Non-MF questions | "What is Bitcoin?", "Weather today?" |
+| **Wrong AMC** | Questions about non-HDFC schemes | "Tell me about SBI Bluechip" |
+| **PII Requests** | Personal data | "Show my portfolio", "My returns?" |
 
-1. **Regex scan** for advice patterns: `"you should"`, `"I recommend"`, `"consider investing"`
-2. If detected → Replace response with canned refusal:
+### 7.2 Decision Tree
 
 ```text
-"I can only provide factual information about mutual fund schemes. For 
-personalized investment advice, please consult a SEBI-registered investment 
-advisor. [Source: N/A]"
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          USER QUERY RECEIVED                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAYER 1: KEYWORD BLOCKLIST CHECK                                            │
+│ ─────────────────────────────────────────────────────────────────────────── │
+│ Match against blocklist:                                                    │
+│ ["should I invest", "best fund", "which fund", "buy or sell", "recommend",  │
+│  "better fund", "good returns", "SIP suggestion", "portfolio", "allocate",  │
+│  "suggest", "advise", "worth it", "profitable", "risky investment"]         │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    │                               │
+              MATCH FOUND                      NO MATCH
+                    │                               │
+                    ▼                               ▼
+         ┌──────────────────┐    ┌──────────────────────────────────────────────┐
+         │ IMMEDIATE REFUSE │    │ LAYER 2: ZERO-SHOT CLASSIFIER                │
+         │ (Template A)     │    │ ─────────────────────────────────────────────│
+         └──────────────────┘    │ Model: facebook/bart-large-mnli              │
+                                 │ Labels: [factual, advice, opinion, off-topic]│
+                                 │ Threshold: 0.7                               │
+                                 └──────────────────────────────────────────────┘
+                                                    │
+                    ┌───────────────┬───────────────┼───────────────┐
+                    │               │               │               │
+             advice > 0.7    opinion > 0.7   off-topic > 0.7   factual wins
+                    │               │               │               │
+                    ▼               ▼               ▼               ▼
+              ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌──────────────────┐
+              │ REFUSE    │   │ REFUSE    │   │ REFUSE    │   │ LAYER 3:         │
+              │ Template A│   │ Template B│   │ Template C│   │ RETRIEVAL        │
+              └───────────┘   └───────────┘   └───────────┘   └──────────────────┘
+                                                                    │
+                                                                    ▼
+                                 ┌─────────────────────────────────────────────┐
+                                 │ LAYER 3: CONFIDENCE GATE                    │
+                                 │ ─────────────────────────────────────────── │
+                                 │ Retrieve top-20 chunks via vector search    │
+                                 │ Check: Are ALL similarity scores < 0.4?     │
+                                 └─────────────────────────────────────────────┘
+                                                    │
+                                    ┌───────────────┴───────────────┐
+                                    │                               │
+                             ALL < 0.4                      AT LEAST ONE ≥ 0.4
+                                    │                               │
+                                    ▼                               ▼
+                         ┌──────────────────┐    ┌─────────────────────────────┐
+                         │ REFUSE           │    │ LAYER 4: SCHEME FILTER      │
+                         │ Template D       │    │ If query mentions scheme →  │
+                         │ (No LLM call)    │    │ Filter by scheme_name       │
+                         └──────────────────┘    └─────────────────────────────┘
+                                                                    │
+                                                                    ▼
+                                                 ┌─────────────────────────────┐
+                                                 │ LAYER 5: RERANK + GENERATE  │
+                                                 │ Cross-encoder rerank → Top-3│
+                                                 │ LLM generates response      │
+                                                 └─────────────────────────────┘
+                                                                    │
+                                                                    ▼
+                                 ┌─────────────────────────────────────────────┐
+                                 │ LAYER 6: POST-GENERATION VALIDATION         │
+                                 │ ─────────────────────────────────────────── │
+                                 │ Scan for advice patterns in response:       │
+                                 │ ["you should", "I recommend", "consider     │
+                                 │  investing", "better to", "advisable"]      │
+                                 └─────────────────────────────────────────────┘
+                                                    │
+                                    ┌───────────────┴───────────────┐
+                                    │                               │
+                           PATTERN FOUND                      NO PATTERN
+                                    │                               │
+                                    ▼                               ▼
+                         ┌──────────────────┐    ┌─────────────────────────────┐
+                         │ REPLACE WITH     │    │ LAYER 7: CITATION CHECK     │
+                         │ REFUSE Template A│    │ Validate [Source: URL]      │
+                         └──────────────────┘    │ Domain whitelist check      │
+                                                 └─────────────────────────────┘
+                                                                    │
+                                                                    ▼
+                                                 ┌─────────────────────────────┐
+                                                 │ LAYER 8: FORMAT & RETURN    │
+                                                 │ Apply answer formatting     │
+                                                 │ Add freshness footer        │
+                                                 │ Return to user              │
+                                                 └─────────────────────────────┘
 ```
 
-### 7.2 Refusal Response Template
+### 7.3 Refusal Message Templates
+
+> [!NOTE]
+> All refusal messages are polite, facts-only, and include one educational official link.
+
+**Template A: Investment Advice Refusal**
 
 ```text
-I'm designed to answer factual questions about HDFC mutual fund schemes only. 
-I cannot provide investment advice, fund comparisons, or recommendations. 
-For personalized guidance, please consult a SEBI-registered advisor. [Source: N/A]
+I'm designed to provide factual information only and cannot offer investment 
+advice or recommendations. For personalized guidance, please consult a 
+SEBI-registered investment advisor.
+
+📚 Learn more about choosing a financial advisor: 
+https://investor.sebi.gov.in/advisorycaution.html
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
 ```
 
-### 7.3 Edge Cases
+**Template B: Opinion Request Refusal**
 
-| Query Type | Handling |
-| ------------ | ---------- |
-| "What is the return of HDFC Large Cap?" | Answer with historical return if in source docs (factual). |
-| "Will HDFC Large Cap give good returns?" | Refuse (prediction/advice). |
-| "Compare HDFC Large Cap and Flexi Cap" | Refuse (comparative = implicit advice). |
-| "What is ELSS lock-in period?" | Answer (factual). |
-| "Is ELSS good for tax saving?" | Refuse (opinion). |
+```text
+I can only share objective facts from official sources. I'm not able to 
+provide subjective assessments or opinions about mutual funds.
+
+📚 Learn about mutual fund risks from SEBI: 
+https://investor.sebi.gov.in/pdf/Mutual%20Fund%20booklet.pdf
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
+```
+
+**Template C: Out-of-Scope Refusal**
+
+```text
+I specialize in factual questions about HDFC mutual fund schemes only. 
+I don't have information on this topic in my sources.
+
+📚 For general investor education, visit: 
+https://www.amfiindia.com/investor-corner/investor-awareness.html
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
+```
+
+**Template D: Low Confidence Refusal**
+
+```text
+I don't have reliable information on this in my sources. For accurate 
+details, please check the official HDFC AMC website or AMFI portal.
+
+📚 Official HDFC Fund Information: 
+https://www.hdfcfund.com/explore/mutual-funds
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
+```
+
+### 7.4 Answer Formatting Rules
+
+**Mandatory Format Structure**:
+
+```text
+[FACTUAL ANSWER: ≤3 sentences, directly answering the question]
+[Source: <single_url_from_retrieved_chunk>]
+📅 Last updated from sources: <extraction_date>
+📖 This is factual information, not investment advice.
+```
+
+**Formatting Rules**:
+
+| Rule | Requirement | Validation |
+| ------ | ------------- | ------------ |
+| **Sentence Limit** | ≤3 sentences | Post-generation sentence count check; truncate if exceeded |
+| **Citation Count** | Exactly 1 URL | Regex validation: `\[Source: (https?://[^\]]+)\]` |
+| **Citation Domain** | Whitelisted only | `hdfcfund.com`, `amfiindia.com`, `sebi.gov.in` |
+| **Freshness Footer** | Always present | `📅 Last updated from sources: YYYY-MM-DD` |
+| **Disclaimer Footer** | Always present | `📖 This is factual information, not investment advice.` |
+| **Number Formatting** | Currency with ₹ symbol | Expense ratio as %, amounts as ₹X,XXX |
+
+**Sentence Limit Enforcement**:
+
+1. Count sentences in LLM output (split by `.`, `!`, `?`)
+2. If > 3 sentences → truncate to first 3
+3. Ensure truncated response still makes grammatical sense
+4. Log truncation events for prompt tuning
+
+### 7.5 Example Queries & Expected Behaviors
+
+#### 7.5.1 Allowed Queries → Expected Responses
+
+**Example 1: Expense Ratio Query**
+
+```text
+USER: What is the expense ratio of HDFC Large Cap Fund Direct Plan?
+
+ASSISTANT: The Total Expense Ratio (TER) for HDFC Large Cap Fund - Direct Plan 
+is 1.08% as of January 2026. This includes fund management fees and 
+operational expenses.
+[Source: https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct]
+📅 Last updated from sources: 2026-02-04
+📖 This is factual information, not investment advice.
+```
+
+**Example 2: Lock-in Period Query**
+
+```text
+USER: What is the lock-in period for HDFC ELSS Tax Saver?
+
+ASSISTANT: HDFC Tax Saver (ELSS) has a mandatory lock-in period of 3 years 
+from the date of investment. This is the shortest lock-in among all Section 
+80C investment options.
+[Source: https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct]
+📅 Last updated from sources: 2026-02-04
+📖 This is factual information, not investment advice.
+```
+
+**Example 3: Fund Manager Query**
+
+```text
+USER: Who manages the HDFC Flexi Cap Fund?
+
+ASSISTANT: HDFC Flexi Cap Fund is managed by Mr. Roshi Jain and Mr. Dhruv Muchhal 
+as of January 2026.
+[Source: https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct]
+📅 Last updated from sources: 2026-02-04
+📖 This is factual information, not investment advice.
+```
+
+#### 7.5.2 Disallowed Queries → Refusal Responses
+
+**Example 1: Investment Advice Request**
+
+```text
+USER: Should I invest in HDFC Large Cap Fund for long-term?
+
+CLASSIFICATION: BLOCKED by keyword blocklist ("should I invest")
+
+ASSISTANT: I'm designed to provide factual information only and cannot offer 
+investment advice or recommendations. For personalized guidance, please consult 
+a SEBI-registered investment advisor.
+
+📚 Learn more about choosing a financial advisor: 
+https://investor.sebi.gov.in/advisorycaution.html
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
+```
+
+**Example 2: Comparison/Opinion Request**
+
+```text
+USER: Is HDFC Large Cap better than HDFC Flexi Cap?
+
+CLASSIFICATION: BLOCKED by zero-shot classifier (advice: 0.82)
+
+ASSISTANT: I can only share objective facts from official sources. I'm not able 
+to provide subjective assessments or opinions about mutual funds.
+
+📚 Learn about mutual fund risks from SEBI: 
+https://investor.sebi.gov.in/pdf/Mutual%20Fund%20booklet.pdf
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
+```
+
+**Example 3: Future Prediction Request**
+
+```text
+USER: Will HDFC Balanced Advantage Fund give good returns next year?
+
+CLASSIFICATION: BLOCKED by keyword blocklist ("good returns") + 
+               zero-shot classifier (advice: 0.91)
+
+ASSISTANT: I'm designed to provide factual information only and cannot offer 
+investment advice or recommendations. For personalized guidance, please consult 
+a SEBI-registered investment advisor.
+
+📚 Learn more about choosing a financial advisor: 
+https://investor.sebi.gov.in/advisorycaution.html
+
+[Source: N/A]
+📅 This is factual information, not investment advice.
+```
+
+### 7.6 Decision Rules Summary
+
+| Layer | Check | Pass Action | Fail Action |
+| ------- | ------- | ------------- | ------------- |
+| **L1** | Keyword blocklist | Continue to L2 | Refuse (Template A) |
+| **L2** | Zero-shot classifier | Continue to L3 (if factual) | Refuse (Template A/B/C) |
+| **L3** | Confidence gate (≥0.4) | Continue to L4 | Refuse (Template D) |
+| **L4** | Scheme filter | Continue to L5 | Continue to L5 (general query) |
+| **L5** | Rerank + Generate | Continue to L6 | N/A |
+| **L6** | Post-gen advice scan | Continue to L7 | Refuse (Template A) |
+| **L7** | Citation validation | Continue to L8 | Retry or inject citation |
+| **L8** | Format + Return | Deliver response | N/A |
 
 ---
 
@@ -575,7 +1057,119 @@ Every query logs:
 
 ---
 
-## 10. Security Considerations
+## 10. Data Quality & Integrity
+
+### 10.1 Cross-Scheme Contamination Prevention
+
+> [!WARNING]
+> Cross-scheme contamination occurs when facts from one scheme are retrieved for a query about a different scheme. This is a critical failure mode for financial RAG systems.
+
+**Ingestion-Time Isolation**:
+
+| Rule | Implementation |
+| ------ | ---------------- |
+| **Scheme-per-document tagging** | Parser extracts scheme name from document header/filename and propagates to every chunk—no chunk exists without explicit scheme attribution |
+| **Reject ambiguous documents** | If a document covers multiple schemes (e.g., SAI) → split into scheme-specific sections before chunking; each chunk tagged with exactly one scheme |
+| **Namespace separation** | ChromaDB metadata uses `{amc_name}_{scheme_code}` for filtering |
+
+**Retrieval-Time Isolation**:
+
+| Rule | Implementation |
+| ------ | ---------------- |
+| **Mandatory scheme filter** | If query mentions a specific scheme name → retrieval **must** filter by `scheme_name` OR `scheme_code` before similarity ranking |
+| **Cross-scheme detection** | If top-3 retrieved chunks contain >1 distinct `scheme_name` → flag as contamination risk; rerank with strict scheme filter |
+| **Answer validation** | Post-generation check ensures cited `source_url` matches the scheme mentioned in query |
+
+**Contamination Audit**:
+
+- Log any response where retrieved chunks span multiple schemes
+- Weekly audit report: count of cross-scheme retrievals; investigate if > 2% of queries
+
+### 10.2 Staleness Handling
+
+**Age Thresholds by Document Type**:
+
+| Document Type | Stale After | Rationale |
+| --------------- | ------------- | ----------- |
+| AMFI NAV | 1 day | Daily updates expected |
+| Monthly Factsheets | 45 days | Monthly publication cycle + buffer |
+| KIM/SID | 365 days | Annual updates typical |
+| SEBI Circulars | Never | Regulatory baseline remains valid |
+
+**Staleness Detection**:
+
+- Each chunk carries calculated field `is_stale: boolean` based on `extraction_date` vs. current date
+- Staleness computed at query time, not ingestion time
+
+**Staleness Handling Workflow**:
+
+| Phase | Action |
+| ------- | -------- |
+| **Retrieval** | Stale chunks deprioritized in reranking (score multiplier × 0.8) |
+| **Generation** | If any top-3 chunks are stale → append: `"⚠️ This information may be outdated. Last sourced: {extraction_date}."` |
+| **Ingestion** | On re-crawl, compare `checksum`; if mismatch → mark old chunks as `superseded_by: <new_chunk_id>` |
+
+**Version Control**:
+
+- Superseded chunks not deleted; moved to `archive` collection with `superseded_date`, `replacement_chunk_id`
+- Enables rollback and temporal queries ("What was the TER in 2025?")
+
+**Proactive Refresh Schedule**:
+
+| Source | Refresh Frequency |
+| -------- | ------------------- |
+| AMFI NAV | Weekly auto-crawl |
+| Factsheets | Monthly auto-crawl |
+| KIM/SID | Quarterly check |
+| SEBI Circulars | Manual trigger on new release |
+
+### 10.3 Freshness Tracking ("Last Updated from Sources")
+
+**Per-Chunk Tracking**:
+
+- `extraction_date`: When chunk was ingested into vector store
+- `document_date`: Official publication date from source document
+- Citation format includes date: `[Source: <URL> | Updated: <document_date>]`
+
+**Response-Level Freshness Display**:
+
+- For each response, compute `min(extraction_date)` across all retrieved chunks used
+- Append footer: `"📅 Last updated from sources: {earliest_extraction_date}"`
+
+**Freshness Index**:
+
+Maintain `freshness_index.json` updated at each ingestion:
+
+```json
+{
+  "scheme_name": "HDFC Large Cap Fund",
+  "document_type": "KIM",
+  "last_extraction_date": "2026-02-04",
+  "last_document_date": "2026-01-01",
+  "next_scheduled_refresh": "2026-03-01"
+}
+```
+
+**Audit Trail for Freshness Claims**:
+
+Every log entry records:
+
+- `source_urls_used`: List of URLs contributing to answer
+- `extraction_dates`: Corresponding ingestion timestamps
+- `oldest_source_date`: For the "Last updated" footer
+
+**Freshness SLA**:
+
+| Fact Category | Max Age |
+| --------------- | --------- |
+| Dynamic facts (TER, NAV, AUM) | 90 days |
+| Static facts (objective, benchmark) | 1 year |
+
+- Automated alert if any query violates SLA → trigger re-ingestion
+
+---
+
+## 11. Security Considerations
 
 | Concern | Mitigation |
 | --------- | ------------ |
@@ -587,7 +1181,7 @@ Every query logs:
 
 ---
 
-## 11. Future Enhancements (Out of Scope for MVP)
+## 12. Future Enhancements (Out of Scope for MVP)
 
 1. **Multi-AMC Support**: Extend to ICICI Prudential, SBI MF, etc.
 2. **Real-Time NAV**: Integrate AMFI daily NAV API for fresh data.
@@ -598,12 +1192,12 @@ Every query logs:
 
 ---
 
-## 12. Complete HDFC AMC Document URLs (25 Documents)
+## 13. Complete HDFC AMC Document URLs (25 Documents)
 
 > [!IMPORTANT]
 > All URLs must be verified before ingestion. Document availability may change; run health check weekly.
 
-### 12.1 Scheme Information Documents (SID) — 5 Documents
+### 13.1 Scheme Information Documents (SID) — 5 Documents
 
 | # | Scheme | URL |
 | --- | -------- | ----- |
@@ -613,7 +1207,7 @@ Every query logs:
 | 4 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
 | 5 | HDFC Liquid Fund | `https://www.hdfcfund.com/investor-services/fund-documents/sid` |
 
-### 12.2 Key Information Memorandum (KIM) — 5 Documents
+### 13.2 Key Information Memorandum (KIM) — 5 Documents
 
 | # | Scheme | URL |
 | --- | -------- | ----- |
@@ -623,37 +1217,37 @@ Every query logs:
 | 9 | HDFC Balanced Advantage Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-balanced-advantage-fund/direct` |
 | 10 | HDFC Liquid Fund | `https://www.hdfcfund.com/explore/mutual-funds/hdfc-liquid-fund/direct` |
 
-### 12.3 Statement of Additional Information (SAI) — 1 Document
+### 13.3 Statement of Additional Information (SAI) — 1 Document
 
 | # | Document | URL |
 | --- | ---------- | ----- |
 | 11 | HDFC AMC SAI (covers all schemes) | `https://www.hdfcfund.com/literature/statement-of-additional-information` |
 
-### 12.4 Scheme Summary — 1 Document
+### 13.4 Scheme Summary — 1 Document
 
 | # | Document | URL |
 | --- | ---------- | ----- |
 | 12 | All Schemes Summary | `https://www.hdfcfund.com/investor-services/fund-documents/scheme-summary` |
 
-### 12.5 Monthly Factsheets — 1 Document
+### 13.5 Monthly Factsheets — 1 Document
 
 | # | Document | URL |
 | --- | ---------- | ----- |
 | 13 | All Schemes Factsheets | `https://www.hdfcfund.com/investor-services/factsheets` |
 
-### 12.6 Leaflets — 1 Document
+### 13.6 Leaflets — 1 Document
 
 | # | Document | URL |
 | --- | ---------- | ----- |
 | 14 | All Schemes Leaflets | `https://www.hdfcfund.com/investor-services/fund-literature/leaflets` |
 
-### 12.7 Presentations — 1 Document
+### 13.7 Presentations — 1 Document
 
 | # | Document | URL |
 | --- | ---------- | ----- |
 | 15 | All Schemes Presentations | `https://www.hdfcfund.com/investor-services/fund-literature/presentation` |
 
-### 12.5 AMFI Data Sources — 4 Documents
+### 13.8 AMFI Data Sources — 4 Documents
 
 | # | Document | URL |
 | --- | ---------- | ----- |
@@ -662,7 +1256,7 @@ Every query logs:
 | 19 | Monthly AUM Data | `https://www.amfiindia.com/research-information/aum-data/aum-month-end` |
 | 20 | Investor Complaints | `https://www.amfiindia.com/research-information/other-data/data-on-investor-complaints` |
 
-### 12.6 SEBI Regulatory References — 5 Documents
+### 13.9 SEBI Regulatory References — 5 Documents
 
 | # | Document | URL |
 | --- | ---------- | ----- |
@@ -672,7 +1266,7 @@ Every query logs:
 | 24 | KYC Norms for MF | `https://www.sebi.gov.in/legal/circulars/mar-2014/kyc-requirements-for-mutual-fund-unitholders_26561.html` |
 | 25 | ELSS Guidelines | `https://www.sebi.gov.in/legal/circulars/jun-2017/guidelines-for-filing-of-draft-scheme-information-document-sid-for-equity-linked-savings-scheme-elss_35135.html` |
 
-### 12.7 Document Inventory Summary
+### 13.10 Document Inventory Summary
 
 | Category | Count | Update Frequency |
 | ---------- | ------- | ------------------ |
@@ -686,9 +1280,9 @@ Every query logs:
 
 ---
 
-## 13. Sample Q&A Test Cases
+## 14. Sample Q&A Test Cases
 
-### 13.1 Factual Queries (Should Answer)
+### 14.1 Factual Queries (Should Answer)
 
 | # | Query | Expected Response Pattern |
 | --- | ------- | --------------------------- |
@@ -698,7 +1292,7 @@ Every query logs:
 | 4 | "What is the minimum SIP amount for HDFC Liquid Fund?" | "The minimum SIP investment in HDFC Liquid Fund is ₹X... [Source: hdfcfund.com/...]" |
 | 5 | "What is the benchmark index for HDFC Balanced Advantage Fund?" | "HDFC Balanced Advantage Fund is benchmarked against... [Source: hdfcfund.com/...]" |
 
-### 13.2 Refusal Queries (Should Refuse)
+### 14.2 Refusal Queries (Should Refuse)
 
 | # | Query | Expected Classifier Label | Expected Response |
 | --- | ------- | --------------------------- | ------------------- |
@@ -709,7 +1303,7 @@ Every query logs:
 | 5 | "Will HDFC Flexi Cap outperform the market?" | `investment advice` (prediction) | Refusal — prediction/advice |
 | 6 | "How much should I allocate to large cap?" | `investment advice` (keyword: "allocate") | Immediate refusal via keyword blocklist |
 
-### 13.3 Edge Cases (Requires Careful Handling)
+### 14.3 Edge Cases (Requires Careful Handling)
 
 | # | Query | Classification | Expected Handling |
 | --- | ------- | ---------------- | ------------------- |
@@ -719,7 +1313,7 @@ Every query logs:
 | 4 | "Compare ELSS lock-in with PPF lock-in" | Off-topic (PPF not in scope) | Refuse — cannot answer about PPF |
 | 5 | "What is NAV?" | Factual (general) | Answer with definition from AMFI source |
 
-### 13.4 Confidence Gate Test Cases
+### 14.4 Confidence Gate Test Cases
 
 | # | Query | Expected Behavior |
 | --- | ------- | ------------------- |
@@ -729,9 +1323,9 @@ Every query logs:
 
 ---
 
-## 14. UI Requirements & Disclaimer
+## 15. UI Requirements & Disclaimer
 
-### 14.1 Mandatory Disclaimer (Must Display)
+### 15.1 Mandatory Disclaimer (Must Display)
 
 > [!CAUTION]
 > The following disclaimer MUST be displayed prominently on every page of the UI.
@@ -746,7 +1340,7 @@ Every query logs:
 • For investment decisions, consult a SEBI-registered investment advisor.
 ```
 
-### 14.2 Disclaimer Placement
+### 15.2 Disclaimer Placement
 
 | Location | Display Style |
 | ---------- | --------------- |
@@ -754,7 +1348,7 @@ Every query logs:
 | **Chat Input Area** | Subtle reminder above input: "Ask factual questions only. No advice provided." |
 | **Response Footer** | Every response ends with: "📖 This is factual information, not investment advice." |
 
-### 14.3 UI Component Specifications
+### 15.3 UI Component Specifications
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -789,7 +1383,7 @@ Every query logs:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 14.4 Legal & Compliance Notes
+### 15.4 Legal & Compliance Notes
 
 | Requirement | Implementation |
 | ------------- | ---------------- |
@@ -800,7 +1394,7 @@ Every query logs:
 
 ---
 
-## 15. Summary Checklist
+## 16. Summary Checklist
 
 | Requirement | Solution |
 | ------------- | ---------- |
@@ -821,6 +1415,10 @@ Every query logs:
 | ✅ **Complete URL inventory** | 25 public URLs documented (SID, KIM, SAI, Factsheets, AMFI, SEBI) |
 | ✅ **Sample test cases** | 17 test queries covering factual, refusal, edge cases, confidence gate |
 | ✅ **UI disclaimer** | Mandatory "Facts-only. No investment advice." banner + footer |
+| ✅ **Metadata schema** | 16 mandatory fields per chunk including fact_type, plan_type, checksums |
+| ✅ **Cross-scheme isolation** | Scheme-per-chunk tagging + retrieval-time filtering + contamination audit |
+| ✅ **Staleness handling** | Age thresholds by doc type, stale chunk deprioritization, version control |
+| ✅ **Freshness tracking** | extraction_date + document_date per chunk, response footer with last updated |
 
 ---
 
