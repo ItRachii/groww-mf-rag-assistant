@@ -394,66 +394,140 @@ For personalized guidance, please consult a SEBI-registered advisor. [Source: N/
 
 ## 8. Deployment Architecture
 
-### 8.1 Local Deployment (Recommended for MVP)
+### 8.1 Streamlit Cloud Deployment (Production)
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                    LOCAL DEPLOYMENT STACK                       │
+│                  STREAMLIT CLOUD DEPLOYMENT                     │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
-│   │   Gradio UI  │◄──►│   FastAPI    │◄──►│   Ollama     │      │
-│   │   (Web UI)   │    │   Backend    │    │ (Mistral 7B) │      │
-│   └──────────────┘    └──────────────┘    └──────────────┘      │
-│          ▲                   │                                  │
-│          │                   ▼                                  │
-│          │            ┌───────────────┐                         │
-│          │            │   ChromaDB    │                         │
-│          │            │ (Vector Store)│                         │
-│          │            └───────────────┘                         │
-│          │                   │                                  │
-│          │                   ▼                                  │
-│          │            ┌──────────────┐                          │
-│          └────────────│    Logs      │                          │
-│                       │ (SQLite/JSON)│                          │
-│                       └──────────────┘                          │
+│   ┌──────────────────────────────────────────────────────────┐  │
+│   │                  Streamlit Cloud                         │  │
+│   │  ┌────────────────────────────────────────────────────┐  │  │
+│   │  │              Streamlit App (app.py)                │  │  │
+│   │  │  ┌─────────────────┐  ┌─────────────────────────┐  │  │  │
+│   │  │  │   UI Layer      │  │   RAG Pipeline          │  │  │  │
+│   │  │  │   (st.chat_*)   │  │   • Query Processing    │  │  │  │
+│   │  │  │                 │  │   • Retrieval           │  │  │  │
+│   │  │  │                 │  │   • Response Gen        │  │  │  │
+│   │  │  └─────────────────┘  └─────────────────────────┘  │  │  │
+│   │  └────────────────────────────────────────────────────┘  │  │
+│   └──────────────────────────────────────────────────────────┘  │
+│          │                          │                           │
+│          ▼                          ▼                           │
+│   ┌──────────────┐           ┌──────────────┐                   │
+│   │  ChromaDB    │           │  Groq API    │                   │
+│   │  (Embedded)  │           │  (LLM)       │                   │
+│   │  ./chroma_db │           │  Llama 3.3   │                   │
+│   └──────────────┘           └──────────────┘                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 8.2 System Requirements
+### 8.2 Streamlit Cloud Configuration
 
-| Component | Minimum | Recommended |
-| ----------- | --------- | ------------- |
-| **CPU** | 8 cores | 16 cores |
-| **RAM** | 16 GB | 32 GB |
-| **GPU** | 8 GB VRAM (RTX 3070) | 12 GB VRAM (RTX 4070) |
-| **Storage** | 20 GB SSD | 50 GB SSD |
-| **OS** | Ubuntu 22.04 / Windows 11 | Ubuntu 22.04 |
+#### 8.2.1 Required Files
 
-### 8.3 Tech Stack Summary
+| File | Purpose |
+| ------ | --------- |
+| `app.py` | Main Streamlit application entry point |
+| `requirements.txt` | Python dependencies (auto-installed by Streamlit Cloud) |
+| `.streamlit/config.toml` | Streamlit configuration (theme, server settings) |
+| `.streamlit/secrets.toml` | API keys (Groq API key) — NOT committed to Git |
+| `chroma_db/` | Pre-built ChromaDB vector store (committed to repo) |
+
+#### 8.2.2 Secrets Management
+
+```toml
+# .streamlit/secrets.toml (local) or Streamlit Cloud Secrets dashboard
+[groq]
+api_key = "gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+#### 8.2.3 Streamlit Config
+
+```toml
+# .streamlit/config.toml
+[theme]
+primaryColor = "#00D09C"  # Groww green
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F5F5"
+textColor = "#1E1E1E"
+font = "sans serif"
+
+[server]
+enableCORS = false
+enableXsrfProtection = true
+maxUploadSize = 10
+```
+
+### 8.3 LLM Strategy for Cloud Deployment
+
+> [!IMPORTANT]
+> Local Ollama is not available on Streamlit Cloud. Use Groq API for fast, free-tier LLM inference.
+
+| Aspect | Choice | Rationale |
+| -------- | -------- | ----------- |
+| **LLM Provider** | **Groq API** | Free tier available, ultra-fast inference (~500 tokens/sec), no cold starts |
+| **Model** | `llama-3.3-70b-versatile` | Best quality on Groq free tier, excellent instruction following |
+| **Fallback** | `llama-3.1-8b-instant` | Faster, lower latency for simple queries |
+| **Alternative** | Google Gemini API | Free tier available, good quality |
+
+### 8.4 System Requirements (Streamlit Cloud)
+
+| Resource | Streamlit Cloud Free Tier | Notes |
+| ---------- | --------------------------- | ------- |
+| **CPU** | Shared | Sufficient for RAG pipeline |
+| **RAM** | 1 GB | Tight — use lightweight models |
+| **Storage** | 1 GB | ChromaDB + embeddings must fit |
+| **Timeout** | 60 minutes idle | App sleeps after inactivity |
+| **Bandwidth** | Unlimited | No restrictions |
+
+> [!WARNING]
+> Streamlit Cloud free tier has 1GB RAM limit. BGE-M3 (~1.2GB) may exceed this.
+> Use `sentence-transformers/all-MiniLM-L6-v2` (90MB) as embedding model for cloud deployment.
+
+### 8.5 Tech Stack Summary
 
 | Layer | Technology | Version |
 | ------- | ------------ | --------- |
-| **Frontend** | Gradio | 4.x |
-| **Backend API** | FastAPI | 0.110+ |
-| **LLM Runtime** | Ollama | Latest |
-| **LLM Model** | Mistral 7B Instruct Q4_K_M | v0.3 |
-| **Embedding Model** | BGE-M3 | via sentence-transformers |
+| **Frontend/Backend** | Streamlit | 1.40+ |
+| **Hosting** | Streamlit Community Cloud | Free tier |
+| **LLM Provider** | Groq API | Latest |
+| **LLM Model** | Llama 3.3 70B Versatile | via Groq |
+| **Embedding Model** | all-MiniLM-L6-v2 | via sentence-transformers |
 | **Reranker** | cross-encoder/ms-marco-MiniLM-L-6-v2 | - |
-| **Vector Store** | ChromaDB | 0.4+ |
+| **Vector Store** | ChromaDB (embedded) | 0.4+ |
 | **PDF Parsing** | PyMuPDF4LLM | 0.0.10+ |
 | **Classifier** | transformers (BART-MNLI) | 4.40+ |
-| **Logging** | SQLite + structlog | - |
+| **Logging** | Streamlit session state + JSON | - |
 | **Python** | 3.11+ | - |
 
-### 8.4 API Endpoints
+### 8.6 Deployment Steps
 
-| Endpoint | Method | Purpose |
-| ---------- | -------- | --------- |
-| `/ask` | POST | Main query endpoint. Input: `{"query": "..."}` Output: `{"answer": "...", "citation": "...", "confidence": 0.85}` |
-| `/health` | GET | Healthcheck for all components |
-| `/logs` | GET | Retrieve audit logs (auth-protected) |
-| `/ingest` | POST | Trigger document re-ingestion (admin) |
+1. **Prepare Repository**:
+   - Ensure `app.py` is in repository root
+   - Commit `requirements.txt` with all dependencies
+   - Commit pre-built `chroma_db/` folder with vector embeddings
+   - Add `.streamlit/config.toml` for theming
+
+2. **Configure Streamlit Cloud**:
+   - Connect GitHub repository to [share.streamlit.io](https://share.streamlit.io)
+   - Set main file path: `app.py`
+   - Add secrets via Streamlit Cloud dashboard (Groq API key)
+
+3. **Deploy**:
+   - Streamlit Cloud auto-deploys on Git push
+   - App URL: `https://<app-name>.streamlit.app`
+
+### 8.7 Application Entry Points
+
+| Function | Description |
+| ---------- | ------------- |
+| `main()` | Streamlit app entry point, renders UI and handles chat |
+| `ask_question(query)` | Core RAG pipeline: retrieval → rerank → generate → validate |
+| `load_vectorstore()` | Initializes ChromaDB from committed `chroma_db/` folder |
+| `get_llm_response()` | Calls Groq API with context and prompt |
 
 ---
 
@@ -517,9 +591,10 @@ Every query logs:
 
 1. **Multi-AMC Support**: Extend to ICICI Prudential, SBI MF, etc.
 2. **Real-Time NAV**: Integrate AMFI daily NAV API for fresh data.
-3. **Hindi Language Support**: BGE-M3 already supports Hindi; add Hindi prompts.
+3. **Hindi Language Support**: Add Hindi prompts and UI localization.
 4. **Feedback Loop**: User thumbs-up/down to fine-tune reranker.
-5. **Hosted Deployment**: Containerize with Docker, deploy on AWS/GCP.
+5. **Upgrade to BGE-M3**: Use larger embedding model with Streamlit Cloud paid tier.
+6. **Custom Domain**: Configure custom domain for production branding.
 
 ---
 
