@@ -120,6 +120,22 @@ This document describes a production-grade, facts-only FAQ assistant for Groww t
 - Extract tables as structured markdown
 - Tag each chunk with `source_url`, `document_type`, `scheme_name`, `extraction_date`
 
+**Filename-Based Metadata Extraction**:
+
+PDF files follow a standardized naming convention that encodes metadata:
+
+| Pattern | Example |
+| ------- | ------- |
+| `<scheme>_<doc_type>_<day>_<month>_<year>.pdf` | `HDFC_ELSS_Tax_Saver_SID_21_Nov_2025.pdf` |
+| `<scheme>_<doc_type>_<month>_<year>.pdf` | `HDFC_BalancedAdvantage_Fund_Facts_Jan_2026.pdf` |
+| `<scheme>_<doc_type>.pdf` | `HDFC_LargeCapFund_SCHEME_SUMMARY_DOCUMENT.pdf` |
+
+The `scripts/filename_metadata.py` utility extracts:
+
+- `scheme_name`: Fund identifier (e.g., `HDFC_ELSS_Tax_Saver`)
+- `document_type`: Document category (e.g., `SID`, `KIM`, `Fund_Facts`)
+- `document_date`: Publication date in ISO 8601 format (e.g., `2025-11-21`)
+
 **Atomic Table Handling** (Critical for 100% Reliability):
 
 | Rule | Implementation |
