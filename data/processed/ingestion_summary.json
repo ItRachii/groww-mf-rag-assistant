@@ -1,24 +1,24 @@
 {
-  "processed_at": "2026-02-07T09:05:42.931346Z",
-  "total_chunks": 1990,
+  "processed_at": "2026-02-11T10:11:16.269371Z",
+  "total_chunks": 995,
   "embedding_model": "BAAI/bge-m3",
   "embedding_dim": 1024,
   "chunk_size": 512,
   "chunk_overlap": 64,
   "vector_store": "FAISS",
   "schemes": [
+    "HDFC Tax Saver (ELSS)",
     "HDFC Balanced Advantage Fund",
-    "HDFC Liquid Fund",
     "HDFC Large Cap Fund",
     "HDFC Flexi Cap Fund",
-    "HDFC Tax Saver (ELSS)"
+    "HDFC Liquid Fund"
   ],
   "document_types": [
-    "Presentation",
-    "Fund_Facts",
-    "Leaflet",
     "SCHEME_SUMMARY_DOCUMENT",
     "KIM",
-    "SID"
+    "SID",
+    "Leaflet",
+    "Presentation",
+    "Fund_Facts"
   ]
 }
